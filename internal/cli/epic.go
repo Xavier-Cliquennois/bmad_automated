@@ -1,17 +1,17 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"bmad-automate/internal/config"
 	"bmad-automate/internal/lifecycle"
-	"bmad-automate/internal/router"
 )
 
 func newEpicCommand(app *App) *cobra.Command {
 	var dryRun bool
+	var autoRetry bool
 
 	cmd := &cobra.Command{
 		Use:   "epic <epic-id>",
@@ -31,11 +31,18 @@ For each story, executes all remaining workflows based on its current status:
 The epic command stops on the first failure. Done stories are skipped and do not cause failure.
 Status is updated in sprint-status.yaml after each successful workflow.
 
+Rate Limiting:
+  If a rate limit is encountered, the command will fail unless --auto-retry is enabled.
+  With --auto-retry, the tool will automatically wait for the rate limit to reset and retry.
+
 Use --dry-run to preview workflows without executing them.
 
 Example:
   bmad-automate epic 6
-  # Runs 6-1-*, 6-2-*, 6-3-*, etc. each to completion in order`,
+  # Runs 6-1-*, 6-2-*, 6-3-*, etc. each to completion in order
+
+  bmad-automate epic 6 --auto-retry
+  # Automatically waits and retries when rate limits are hit`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -53,15 +60,18 @@ Example:
 
 			// Handle dry-run mode
 			if dryRun {
-				return runEpicDryRun(cmd, executor, epicID, storyKeys)
+				return runEpicDryRun(cmd, executor, app.Config, epicID, storyKeys)
 			}
 
 			// Execute full lifecycle for each story in order
 			for _, storyKey := range storyKeys {
-				err := executor.Execute(ctx, storyKey)
+				// Reset rate limit detector before each story
+				app.RateLimitDetector.Reset()
+
+				err := executeStoryWithRetry(ctx, executor, app.RateLimitDetector, storyKey, autoRetry)
 				if err != nil {
 					cmd.SilenceUsage = true
-					if errors.Is(err, router.ErrStoryComplete) {
+					if shouldSkipCompletedStory(err) {
 						fmt.Printf("Story %s is already complete, skipping\n", storyKey)
 						continue
 					}
@@ -77,11 +87,12 @@ Example:
 	}
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview workflows without executing them")
+	cmd.Flags().BoolVar(&autoRetry, "auto-retry", false, "Automatically retry when rate limits are hit")
 
 	return cmd
 }
 
-func runEpicDryRun(cmd *cobra.Command, executor *lifecycle.Executor, epicID string, storyKeys []string) error {
+func runEpicDryRun(cmd *cobra.Command, executor *lifecycle.Executor, cfg *config.Config, epicID string, storyKeys []string) error {
 	fmt.Printf("Dry run for epic %s:\n", epicID)
 
 	totalWorkflows := 0
@@ -94,7 +105,7 @@ func runEpicDryRun(cmd *cobra.Command, executor *lifecycle.Executor, epicID stri
 
 		steps, err := executor.GetSteps(storyKey)
 		if err != nil {
-			if errors.Is(err, router.ErrStoryComplete) {
+			if shouldSkipCompletedStory(err) {
 				fmt.Printf("  (already complete)\n")
 				storiesComplete++
 				continue
@@ -105,7 +116,8 @@ func runEpicDryRun(cmd *cobra.Command, executor *lifecycle.Executor, epicID stri
 		}
 
 		for i, step := range steps {
-			fmt.Printf("  %d. %s → %s\n", i+1, step.Workflow, step.NextStatus)
+			model := getModelForStep(step, cfg)
+			fmt.Printf("  %d. %s (%s) → %s\n", i+1, step.Workflow, model, step.NextStatus)
 		}
 		totalWorkflows += len(steps)
 		storiesWithWork++

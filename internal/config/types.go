@@ -47,6 +47,11 @@ type WorkflowConfig struct {
 	// Use {{.StoryKey}} to reference the story key.
 	// Example: "Work on story: {{.StoryKey}}"
 	PromptTemplate string `mapstructure:"prompt_template"`
+
+	// Model is the Claude model to use for this workflow.
+	// Examples: "sonnet", "opus", "claude-opus-4-20250514"
+	// If empty, uses ClaudeConfig.DefaultModel.
+	Model string `mapstructure:"model"`
 }
 
 // FullCycleConfig defines the steps for a full development cycle.
@@ -71,6 +76,12 @@ type ClaudeConfig struct {
 	// Default: "claude" (assumes Claude is in PATH).
 	// Can be overridden with BMAD_CLAUDE_PATH environment variable.
 	BinaryPath string `mapstructure:"binary_path"`
+
+	// DefaultModel is the default Claude model to use for all workflows.
+	// Examples: "sonnet", "opus", "claude-opus-4-20250514"
+	// If empty, uses Claude CLI's default model.
+	// Can be overridden per-workflow via WorkflowConfig.Model.
+	DefaultModel string `mapstructure:"default_model"`
 }
 
 // OutputConfig contains terminal output formatting configuration.
@@ -99,15 +110,19 @@ func DefaultConfig() *Config {
 		Workflows: map[string]WorkflowConfig{
 			"create-story": {
 				PromptTemplate: "/bmad:bmm:workflows:create-story - Create story: {{.StoryKey}}. Do not ask questions.",
+				Model:          "opus", // Use Opus for complex story creation
 			},
 			"dev-story": {
 				PromptTemplate: "/bmad:bmm:workflows:dev-story - Work on story: {{.StoryKey}}. Complete all tasks. Run tests after each implementation. Do not ask clarifying questions - use best judgment based on existing patterns.",
+				Model:          "sonnet", // Use Sonnet for implementation
 			},
 			"code-review": {
 				PromptTemplate: "/bmad:bmm:workflows:code-review - Review story: {{.StoryKey}}. When presenting fix options, always choose to auto-fix all issues immediately. Do not wait for user input.",
+				Model:          "sonnet", // Use Sonnet for code review
 			},
 			"git-commit": {
 				PromptTemplate: "Commit all changes for story {{.StoryKey}} with a descriptive commit message following conventional commits format. Then push to the current branch. Do not ask questions.",
+				Model:          "sonnet", // Use Sonnet for git operations
 			},
 		},
 		FullCycle: FullCycleConfig{
@@ -116,6 +131,7 @@ func DefaultConfig() *Config {
 		Claude: ClaudeConfig{
 			OutputFormat: "stream-json",
 			BinaryPath:   "claude",
+			DefaultModel: "sonnet", // Default model if not specified per-workflow
 		},
 		Output: OutputConfig{
 			TruncateLines:  20,

@@ -30,6 +30,7 @@ import (
 	"bmad-automate/internal/claude"
 	"bmad-automate/internal/config"
 	"bmad-automate/internal/output"
+	"bmad-automate/internal/ratelimit"
 	"bmad-automate/internal/status"
 	"bmad-automate/internal/workflow"
 )
@@ -66,6 +67,10 @@ type StatusReader interface {
 	// GetEpicStories returns all story keys belonging to the given epic ID.
 	// Story keys are sorted numerically by story number for predictable execution order.
 	GetEpicStories(epicID string) ([]string, error)
+
+	// GetAllEpics returns all epic IDs that are not done or deferred, sorted numerically.
+	// Epics with status "done", "deferred", or "optional" are excluded.
+	GetAllEpics() ([]string, error)
 }
 
 // StatusWriter is the interface for updating story status in sprint-status.yaml.
@@ -110,6 +115,9 @@ type App struct {
 
 	// StatusWriter updates story status in sprint-status.yaml.
 	StatusWriter StatusWriter
+
+	// RateLimitDetector captures and analyzes rate limit errors from stderr.
+	RateLimitDetector *ratelimit.Detector
 }
 
 // NewApp creates a new [App] with all production dependencies wired up.
@@ -123,11 +131,15 @@ type App struct {
 // For testing, construct [App] directly with mock dependencies instead.
 func NewApp(cfg *config.Config) *App {
 	printer := output.NewPrinter()
+	rateLimitDetector := ratelimit.NewDetector()
 
 	executor := claude.NewExecutor(claude.ExecutorConfig{
 		BinaryPath:   cfg.Claude.BinaryPath,
 		OutputFormat: cfg.Claude.OutputFormat,
 		StderrHandler: func(line string) {
+			// Process line for rate limit detection
+			rateLimitDetector.ProcessStderrLine(line)
+
 			// Print stderr to stderr
 			os.Stderr.WriteString("[stderr] " + line + "\n")
 		},
@@ -138,12 +150,13 @@ func NewApp(cfg *config.Config) *App {
 	statusWriter := status.NewWriter("")
 
 	return &App{
-		Config:       cfg,
-		Executor:     executor,
-		Printer:      printer,
-		Runner:       runner,
-		StatusReader: statusReader,
-		StatusWriter: statusWriter,
+		Config:            cfg,
+		Executor:          executor,
+		Printer:           printer,
+		Runner:            runner,
+		StatusReader:      statusReader,
+		StatusWriter:      statusWriter,
+		RateLimitDetector: rateLimitDetector,
 	}
 }
 
@@ -177,6 +190,7 @@ story creation, development, code review, and git operations.`,
 		newRunCommand(app),
 		newQueueCommand(app),
 		newEpicCommand(app),
+		newAllEpicsCommand(app),
 		newRawCommand(app),
 	)
 

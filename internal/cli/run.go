@@ -12,6 +12,7 @@ import (
 
 func newRunCommand(app *App) *cobra.Command {
 	var dryRun bool
+	var autoRetry bool
 
 	cmd := &cobra.Command{
 		Use:   "run <story-key>",
@@ -27,7 +28,15 @@ The command executes all remaining workflows based on the story's current status
 
 Status is updated in sprint-status.yaml after each successful workflow.
 
-Use --dry-run to preview workflows without executing them.`,
+Rate Limiting:
+  If a rate limit is encountered, the command will fail unless --auto-retry is enabled.
+  With --auto-retry, the tool will automatically wait for the rate limit to reset and retry.
+
+Use --dry-run to preview workflows without executing them.
+
+Example:
+  bmad-automate run 3-1-welcome-message-display --auto-retry
+  # Automatically waits and retries when rate limits are hit`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			storyKey := args[0]
@@ -51,7 +60,8 @@ Use --dry-run to preview workflows without executing them.`,
 
 				fmt.Printf("Dry run for story %s:\n", storyKey)
 				for i, step := range steps {
-					fmt.Printf("  %d. %s → %s\n", i+1, step.Workflow, step.NextStatus)
+					model := getModelForStep(step, app.Config)
+				fmt.Printf("  %d. %s (%s) → %s\n", i+1, step.Workflow, model, step.NextStatus)
 				}
 				return nil
 			}
@@ -61,11 +71,14 @@ Use --dry-run to preview workflows without executing them.`,
 				app.Printer.StepStart(stepIndex, totalSteps, workflow)
 			})
 
-			// Execute the full lifecycle
-			err := executor.Execute(ctx, storyKey)
+			// Reset rate limit detector before execution
+			app.RateLimitDetector.Reset()
+
+			// Execute the full lifecycle with retry support
+			err := executeStoryWithRetry(ctx, executor, app.RateLimitDetector, storyKey, autoRetry)
 			if err != nil {
 				cmd.SilenceUsage = true
-				if errors.Is(err, router.ErrStoryComplete) {
+				if shouldSkipCompletedStory(err) {
 					fmt.Printf("Story %s is already complete, no action needed\n", storyKey)
 					return nil
 				}
@@ -78,6 +91,7 @@ Use --dry-run to preview workflows without executing them.`,
 	}
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview workflows without executing them")
+	cmd.Flags().BoolVar(&autoRetry, "auto-retry", false, "Automatically retry when rate limits are hit")
 
 	return cmd
 }

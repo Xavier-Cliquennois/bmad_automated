@@ -131,3 +131,63 @@ func (r *Reader) GetEpicStories(epicID string) ([]string, error) {
 
 	return result, nil
 }
+
+// GetAllEpics returns all epic IDs that are not done or deferred, sorted numerically.
+//
+// Epic IDs are matched using the pattern "epic-{N}" where N is numeric.
+// Epics with status "done", "deferred", or "optional" are excluded.
+// Results are sorted numerically by epic number.
+//
+// Returns an error if the file cannot be read.
+func (r *Reader) GetAllEpics() ([]string, error) {
+	sprintStatus, err := r.Read()
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect all epic IDs that are not complete
+	type epicWithNum struct {
+		id  string
+		num int
+	}
+	var epics []epicWithNum
+
+	for key, status := range sprintStatus.DevelopmentStatus {
+		// Match epic-N pattern
+		if !strings.HasPrefix(key, "epic-") {
+			continue
+		}
+
+		// Skip completed, deferred, or optional epics
+		if status == StatusDone || status == "deferred" || status == "optional" {
+			continue
+		}
+
+		// Extract epic number
+		numStr := strings.TrimPrefix(key, "epic-")
+		num, err := strconv.Atoi(numStr)
+		if err != nil {
+			// Not a numeric epic ID, skip
+			continue
+		}
+
+		epics = append(epics, epicWithNum{id: numStr, num: num})
+	}
+
+	if len(epics) == 0 {
+		return nil, fmt.Errorf("no active epics found")
+	}
+
+	// Sort by epic number
+	sort.Slice(epics, func(i, j int) bool {
+		return epics[i].num < epics[j].num
+	})
+
+	// Extract just the IDs
+	result := make([]string, len(epics))
+	for i, e := range epics {
+		result[i] = e.id
+	}
+
+	return result, nil
+}

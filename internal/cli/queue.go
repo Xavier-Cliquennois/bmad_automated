@@ -1,17 +1,17 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
+	"bmad-automate/internal/config"
 	"bmad-automate/internal/lifecycle"
-	"bmad-automate/internal/router"
 )
 
 func newQueueCommand(app *App) *cobra.Command {
 	var dryRun bool
+	var autoRetry bool
 
 	cmd := &cobra.Command{
 		Use:   "queue <story-key> [story-key...]",
@@ -30,10 +30,17 @@ For each story, executes all remaining workflows based on its current status:
 The queue stops on the first failure. Done stories are skipped and do not cause failure.
 Status is updated in sprint-status.yaml after each successful workflow.
 
+Rate Limiting:
+  If a rate limit is encountered, the command will fail unless --auto-retry is enabled.
+  With --auto-retry, the tool will automatically wait for the rate limit to reset and retry.
+
 Use --dry-run to preview workflows without executing them.
 
 Example:
-  bmad-automate queue 6-5 6-6 6-7 6-8`,
+  bmad-automate queue 6-5 6-6 6-7 6-8
+
+  bmad-automate queue 6-5 6-6 6-7 --auto-retry
+  # Automatically waits and retries when rate limits are hit`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -43,15 +50,18 @@ Example:
 
 			// Handle dry-run mode
 			if dryRun {
-				return runQueueDryRun(cmd, executor, args)
+				return runQueueDryRun(cmd, executor, app.Config, args)
 			}
 
 			// Execute full lifecycle for each story in order
 			for _, storyKey := range args {
-				err := executor.Execute(ctx, storyKey)
+				// Reset rate limit detector before each story
+				app.RateLimitDetector.Reset()
+
+				err := executeStoryWithRetry(ctx, executor, app.RateLimitDetector, storyKey, autoRetry)
 				if err != nil {
 					cmd.SilenceUsage = true
-					if errors.Is(err, router.ErrStoryComplete) {
+					if shouldSkipCompletedStory(err) {
 						fmt.Printf("Story %s is already complete, skipping\n", storyKey)
 						continue
 					}
@@ -67,11 +77,12 @@ Example:
 	}
 
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview workflows without executing them")
+	cmd.Flags().BoolVar(&autoRetry, "auto-retry", false, "Automatically retry when rate limits are hit")
 
 	return cmd
 }
 
-func runQueueDryRun(cmd *cobra.Command, executor *lifecycle.Executor, storyKeys []string) error {
+func runQueueDryRun(cmd *cobra.Command, executor *lifecycle.Executor, cfg *config.Config, storyKeys []string) error {
 	fmt.Printf("Dry run for %d stories:\n", len(storyKeys))
 
 	totalWorkflows := 0
@@ -84,7 +95,7 @@ func runQueueDryRun(cmd *cobra.Command, executor *lifecycle.Executor, storyKeys 
 
 		steps, err := executor.GetSteps(storyKey)
 		if err != nil {
-			if errors.Is(err, router.ErrStoryComplete) {
+			if shouldSkipCompletedStory(err) {
 				fmt.Printf("  (already complete)\n")
 				storiesComplete++
 				continue
@@ -95,7 +106,8 @@ func runQueueDryRun(cmd *cobra.Command, executor *lifecycle.Executor, storyKeys 
 		}
 
 		for i, step := range steps {
-			fmt.Printf("  %d. %s → %s\n", i+1, step.Workflow, step.NextStatus)
+			model := getModelForStep(step, cfg)
+			fmt.Printf("  %d. %s (%s) → %s\n", i+1, step.Workflow, model, step.NextStatus)
 		}
 		totalWorkflows += len(steps)
 		storiesWithWork++

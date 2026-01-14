@@ -17,6 +17,11 @@ type LifecycleStep struct {
 	// NextStatus is the status to set after this step completes successfully.
 	// The final step typically sets status to "done".
 	NextStatus status.Status
+
+	// Model is the Claude model to use for this workflow (e.g., "opus", "sonnet").
+	// This field is populated by CLI helpers for dry-run display purposes.
+	// Empty string means use the default model.
+	Model string
 }
 
 // GetLifecycle returns the complete sequence of lifecycle steps from the given

@@ -54,18 +54,22 @@ func (r *Runner) RunSingle(ctx context.Context, workflowName, storyKey string) i
 		return 1
 	}
 
+	// Get model from workflow config, fallback to default model
+	model := r.getModelForWorkflow(workflowName)
+
 	label := fmt.Sprintf("%s: %s", workflowName, storyKey)
-	return r.runClaude(ctx, prompt, label)
+	return r.runClaude(ctx, prompt, label, model)
 }
 
 // RunRaw executes an arbitrary prompt without template expansion.
 //
 // Use this method for one-off or custom prompts that don't correspond to
 // configured workflows. The prompt is passed directly to Claude CLI.
+// Uses the default model configured in ClaudeConfig.DefaultModel.
 //
 // Returns the exit code from Claude CLI (0 for success, non-zero for failure).
 func (r *Runner) RunRaw(ctx context.Context, prompt string) int {
-	return r.runClaude(ctx, prompt, "raw")
+	return r.runClaude(ctx, prompt, "raw", r.config.Claude.DefaultModel)
 }
 
 // RunFullCycle executes all configured steps in sequence for a story.
@@ -105,7 +109,8 @@ func (r *Runner) RunFullCycle(ctx context.Context, storyKey string) int {
 		r.printer.StepStart(i+1, len(steps), step.Name)
 
 		stepStart := time.Now()
-		exitCode := r.runClaude(ctx, step.Prompt, fmt.Sprintf("%s: %s", step.Name, storyKey))
+		model := r.getModelForWorkflow(step.Name)
+		exitCode := r.runClaude(ctx, step.Prompt, fmt.Sprintf("%s: %s", step.Name, storyKey), model)
 		duration := time.Since(stepStart)
 
 		results[i] = output.StepResult{
@@ -131,7 +136,8 @@ func (r *Runner) RunFullCycle(ctx context.Context, storyKey string) int {
 // This is the core execution method used by all public Runner methods.
 // It displays a command header, streams events to the printer via handleEvent,
 // and displays a footer with timing and exit status.
-func (r *Runner) runClaude(ctx context.Context, prompt, label string) int {
+// The model parameter specifies which Claude model to use (empty string uses Claude CLI default).
+func (r *Runner) runClaude(ctx context.Context, prompt, label, model string) int {
 	r.printer.CommandHeader(label, prompt, r.config.Output.TruncateLength)
 
 	startTime := time.Now()
@@ -140,7 +146,7 @@ func (r *Runner) runClaude(ctx context.Context, prompt, label string) int {
 		r.handleEvent(event)
 	}
 
-	exitCode, err := r.executor.ExecuteWithResult(ctx, prompt, handler)
+	exitCode, err := r.executor.ExecuteWithResult(ctx, prompt, model, handler)
 	if err != nil {
 		fmt.Printf("Error executing claude: %v\n", err)
 		exitCode = 1
@@ -150,6 +156,17 @@ func (r *Runner) runClaude(ctx context.Context, prompt, label string) int {
 	r.printer.CommandFooter(duration, exitCode == 0, exitCode)
 
 	return exitCode
+}
+
+// getModelForWorkflow returns the model to use for a given workflow.
+// It returns the workflow-specific model if configured, otherwise the default model.
+func (r *Runner) getModelForWorkflow(workflowName string) string {
+	if wf, ok := r.config.Workflows[workflowName]; ok {
+		if wf.Model != "" {
+			return wf.Model
+		}
+	}
+	return r.config.Claude.DefaultModel
 }
 
 // handleEvent routes a Claude streaming event to the appropriate printer method.

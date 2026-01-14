@@ -29,11 +29,13 @@ type Executor interface {
 
 	// ExecuteWithResult runs Claude with the given prompt and waits for completion.
 	// The handler is called for each [Event] received during execution.
+	// The model parameter specifies which Claude model to use (e.g. "sonnet", "opus").
+	// If model is empty, Claude CLI's default model is used.
 	// Returns the exit code (0 for success) and any error encountered during execution.
 	//
 	// This is the recommended method for production use as it provides the exit code
 	// needed to determine if Claude completed successfully.
-	ExecuteWithResult(ctx context.Context, prompt string, handler EventHandler) (int, error)
+	ExecuteWithResult(ctx context.Context, prompt string, model string, handler EventHandler) (int, error)
 }
 
 // EventHandler is a callback function invoked for each [Event] received from Claude.
@@ -126,8 +128,10 @@ func NewExecutor(config ExecutorConfig) *DefaultExecutor {
 func (e *DefaultExecutor) Execute(ctx context.Context, prompt string) (<-chan Event, error) {
 	cmd := exec.CommandContext(ctx, e.config.BinaryPath,
 		"--dangerously-skip-permissions",
-		"-p", prompt,
+		"--print",
+		"--verbose",
 		"--output-format", e.config.OutputFormat,
+		prompt,
 	)
 
 	stdout, err := cmd.StdoutPipe()
@@ -171,12 +175,23 @@ func (e *DefaultExecutor) Execute(ctx context.Context, prompt string) (<-chan Ev
 // The handler may be nil if you only need the exit code without processing events.
 // If the handler is provided, it is called synchronously for each event before
 // this method returns.
-func (e *DefaultExecutor) ExecuteWithResult(ctx context.Context, prompt string, handler EventHandler) (int, error) {
-	cmd := exec.CommandContext(ctx, e.config.BinaryPath,
+func (e *DefaultExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, handler EventHandler) (int, error) {
+	args := []string{
 		"--dangerously-skip-permissions",
-		"-p", prompt,
+		"--print",
+		"--verbose",
 		"--output-format", e.config.OutputFormat,
-	)
+	}
+
+	// Add model flag if specified
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+
+	// Add prompt as final argument
+	args = append(args, prompt)
+
+	cmd := exec.CommandContext(ctx, e.config.BinaryPath, args...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -298,10 +313,11 @@ func (m *MockExecutor) Execute(ctx context.Context, prompt string) (<-chan Event
 // ExecuteWithResult returns the pre-configured [MockExecutor.ExitCode].
 //
 // The prompt is recorded in [MockExecutor.RecordedPrompts] for later verification.
+// The model parameter is ignored by the mock.
 // If [MockExecutor.Error] is set, it returns 1 and the error immediately.
 // Otherwise, all [MockExecutor.Events] are passed to the handler synchronously,
 // then the configured exit code is returned.
-func (m *MockExecutor) ExecuteWithResult(ctx context.Context, prompt string, handler EventHandler) (int, error) {
+func (m *MockExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, handler EventHandler) (int, error) {
 	m.RecordedPrompts = append(m.RecordedPrompts, prompt)
 
 	if m.Error != nil {
