@@ -14,6 +14,7 @@ import (
 	"bmad-automate/internal/claude"
 	"bmad-automate/internal/config"
 	"bmad-automate/internal/output"
+	"bmad-automate/internal/ratelimit"
 	"bmad-automate/internal/status"
 	"bmad-automate/internal/workflow"
 )
@@ -67,17 +68,18 @@ func setupRunTestApp(tmpDir string) (*App, *claude.MockExecutor, *bytes.Buffer) 
 		},
 		ExitCode: 0,
 	}
-	runner := workflow.NewRunner(mockExecutor, printer, cfg)
+	runner := workflow.NewRunner(mockExecutor, printer, cfg, nil)
 	statusReader := status.NewReader(tmpDir)
 	statusWriter := status.NewWriter(tmpDir)
 
 	return &App{
-		Config:       cfg,
-		Executor:     mockExecutor,
-		Printer:      printer,
-		Runner:       runner,
-		StatusReader: statusReader,
-		StatusWriter: statusWriter,
+		Config:            cfg,
+		Executor:          mockExecutor,
+		Printer:           printer,
+		Runner:            runner,
+		StatusReader:      statusReader,
+		StatusWriter:      statusWriter,
+		RateLimitDetector: ratelimit.NewDetector(),
 	}, mockExecutor, buf
 }
 
@@ -211,11 +213,12 @@ func TestRunCommand_FullLifecycleExecution(t *testing.T) {
 			printer := output.NewPrinterWithWriter(&bytes.Buffer{}) // Capture output
 
 			app := &App{
-				Config:       config.DefaultConfig(),
-				StatusReader: statusReader,
-				StatusWriter: mockWriter,
-				Runner:       mockRunner,
-				Printer:      printer,
+				Config:            config.DefaultConfig(),
+				StatusReader:      statusReader,
+				StatusWriter:      mockWriter,
+				Runner:            mockRunner,
+				Printer:           printer,
+				RateLimitDetector: ratelimit.NewDetector(),
 			}
 
 			rootCmd := NewRootCommand(app)
@@ -263,11 +266,12 @@ func TestRunCommand_LifecycleStoryNotFound(t *testing.T) {
 	printer := output.NewPrinterWithWriter(&bytes.Buffer{}) // Capture output
 
 	app := &App{
-		Config:       config.DefaultConfig(),
-		StatusReader: statusReader,
-		StatusWriter: mockWriter,
-		Runner:       mockRunner,
-		Printer:      printer,
+		Config:            config.DefaultConfig(),
+		StatusReader:      statusReader,
+		StatusWriter:      mockWriter,
+		Runner:            mockRunner,
+		Printer:           printer,
+		RateLimitDetector: ratelimit.NewDetector(),
 	}
 
 	rootCmd := NewRootCommand(app)

@@ -104,7 +104,7 @@ func Example_commandOutput() {
 
 	// Footer shows result
 	duration := 5 * time.Second
-	printer.CommandFooter(duration, true, 0)
+	printer.CommandFooter(duration, true, 0, nil)
 
 	if buf.Len() > 0 {
 		fmt.Println("command output captured")

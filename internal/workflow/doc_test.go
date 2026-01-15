@@ -30,7 +30,7 @@ func Example_runner() {
 	cfg := config.DefaultConfig()
 
 	// Create and run the workflow
-	runner := workflow.NewRunner(mockExecutor, printer, cfg)
+	runner := workflow.NewRunner(mockExecutor, printer, cfg, nil)
 	exitCode := runner.RunSingle(context.Background(), "create-story", "EPIC-1-story")
 
 	// Check the recorded prompt was correct
@@ -64,7 +64,7 @@ func Example_eventHandler() {
 	cfg := config.DefaultConfig()
 
 	// Execute workflow
-	runner := workflow.NewRunner(mockExecutor, printer, cfg)
+	runner := workflow.NewRunner(mockExecutor, printer, cfg, nil)
 	_ = runner.RunRaw(context.Background(), "analyze this code")
 
 	// Verify output contains expected elements
@@ -94,7 +94,7 @@ func Example_runRaw() {
 	printer := output.NewPrinterWithWriter(buf)
 	cfg := config.DefaultConfig()
 
-	runner := workflow.NewRunner(mockExecutor, printer, cfg)
+	runner := workflow.NewRunner(mockExecutor, printer, cfg, nil)
 	exitCode := runner.RunRaw(context.Background(), "List all Go files in this project")
 
 	fmt.Println("recorded prompt:", mockExecutor.RecordedPrompts[0])

@@ -38,6 +38,22 @@ func (d *Detector) ProcessStderrLine(line string) {
 	}
 }
 
+// ProcessTextMessage analyzes a Claude text message (from stdout) for rate limit errors.
+// This should be called when processing text events from Claude's JSON stream.
+// Some rate limit messages appear as Claude's text response rather than stderr.
+func (d *Detector) ProcessTextMessage(message string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Detect rate limit error in the text message
+	info := DetectRateLimitError(message)
+	if info.IsRateLimitError {
+		d.lastError = &info
+		// Also add to error messages for visibility
+		d.errorMessages = append(d.errorMessages, "[stdout] "+message)
+	}
+}
+
 // GetLastError returns the most recent rate limit error, if any.
 // Returns nil if no rate limit error has been detected.
 func (d *Detector) GetLastError() *ErrorInfo {

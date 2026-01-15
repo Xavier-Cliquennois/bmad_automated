@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"bmad-automate/internal/config"
+	"bmad-automate/internal/ratelimit"
 	"bmad-automate/internal/status"
 )
 
@@ -147,10 +148,11 @@ func TestEpicCommand_FullLifecycleExecution(t *testing.T) {
 			statusReader := status.NewReader(tmpDir)
 
 			app := &App{
-				Config:       config.DefaultConfig(),
-				StatusReader: statusReader,
-				StatusWriter: mockWriter,
-				Runner:       mockRunner,
+				Config:            config.DefaultConfig(),
+				StatusReader:      statusReader,
+				StatusWriter:      mockWriter,
+				Runner:            mockRunner,
+				RateLimitDetector: ratelimit.NewDetector(),
 			}
 
 			rootCmd := NewRootCommand(app)
@@ -201,10 +203,11 @@ func TestEpicCommand_NoStoriesFoundReturnsError(t *testing.T) {
 	statusReader := status.NewReader(tmpDir)
 
 	app := &App{
-		Config:       config.DefaultConfig(),
-		StatusReader: statusReader,
-		StatusWriter: mockWriter,
-		Runner:       mockRunner,
+		Config:            config.DefaultConfig(),
+		StatusReader:      statusReader,
+		StatusWriter:      mockWriter,
+		Runner:            mockRunner,
+		RateLimitDetector: ratelimit.NewDetector(),
 	}
 
 	rootCmd := NewRootCommand(app)

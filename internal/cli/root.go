@@ -145,7 +145,7 @@ func NewApp(cfg *config.Config) *App {
 		},
 	})
 
-	runner := workflow.NewRunner(executor, printer, cfg)
+	runner := workflow.NewRunner(executor, printer, cfg, rateLimitDetector)
 	statusReader := status.NewReader("")
 	statusWriter := status.NewWriter("")
 
@@ -192,6 +192,7 @@ story creation, development, code review, and git operations.`,
 		newEpicCommand(app),
 		newAllEpicsCommand(app),
 		newRawCommand(app),
+		newVersionCommand(app),
 	)
 
 	return rootCmd

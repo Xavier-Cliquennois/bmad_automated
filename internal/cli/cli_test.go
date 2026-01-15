@@ -26,7 +26,7 @@ func setupTestApp() *App {
 		},
 		ExitCode: 0,
 	}
-	runner := workflow.NewRunner(mockExecutor, printer, cfg)
+	runner := workflow.NewRunner(mockExecutor, printer, cfg, nil)
 	statusReader := status.NewReader("")
 
 	return &App{
@@ -71,7 +71,10 @@ func TestNewRootCommand_HasAllSubcommands(t *testing.T) {
 		"git-commit",
 		"run",
 		"queue",
+		"epic",
+		"all-epics",
 		"raw",
+		"version",
 	}
 
 	commands := rootCmd.Commands()
@@ -291,7 +294,7 @@ func setupFailingTestApp() *App {
 		},
 		ExitCode: 1, // Simulate failure
 	}
-	runner := workflow.NewRunner(mockExecutor, printer, cfg)
+	runner := workflow.NewRunner(mockExecutor, printer, cfg, nil)
 	statusReader := status.NewReader("")
 
 	return &App{

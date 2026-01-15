@@ -62,7 +62,7 @@ func TestMockExecutor_ExecuteWithResult(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	exitCode, err := mock.ExecuteWithResult(ctx, "test prompt", handler)
+	exitCode, err := mock.ExecuteWithResult(ctx, "test prompt", "", handler)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode)
@@ -75,7 +75,7 @@ func TestMockExecutor_ExecuteWithResult_NonZeroExit(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	exitCode, err := mock.ExecuteWithResult(ctx, "test prompt", nil)
+	exitCode, err := mock.ExecuteWithResult(ctx, "test prompt", "", nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, exitCode)
@@ -155,7 +155,7 @@ func TestMockExecutor_ExecuteWithResult_WithError(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	exitCode, err := mock.ExecuteWithResult(ctx, "test prompt", nil)
+	exitCode, err := mock.ExecuteWithResult(ctx, "test prompt", "", nil)
 
 	assert.Error(t, err)
 	assert.Equal(t, 1, exitCode)
@@ -174,7 +174,7 @@ func TestMockExecutor_ExecuteWithResult_NilHandler(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	exitCode, err := mock.ExecuteWithResult(ctx, "test prompt", nil)
+	exitCode, err := mock.ExecuteWithResult(ctx, "test prompt", "", nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, exitCode)
@@ -194,7 +194,7 @@ func TestMockExecutor_MultiplePrompts(t *testing.T) {
 	// Execute multiple prompts
 	_, _ = mock.Execute(ctx, "prompt 1")
 	_, _ = mock.Execute(ctx, "prompt 2")
-	_, _ = mock.ExecuteWithResult(ctx, "prompt 3", nil)
+	_, _ = mock.ExecuteWithResult(ctx, "prompt 3", "", nil)
 
 	assert.Equal(t, []string{"prompt 1", "prompt 2", "prompt 3"}, mock.RecordedPrompts)
 }

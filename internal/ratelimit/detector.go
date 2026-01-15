@@ -26,6 +26,10 @@ var (
 	// Pattern for "Claude usage limit reached. Your limit will reset at 1pm (Etc/GMT+5)."
 	usageLimitPattern = regexp.MustCompile(`Claude usage limit reached\. Your limit will reset at (\d{1,2})(am|pm) \(([^)]+)\)`)
 
+	// Pattern for "You've hit your limit · resets 12pm (Europe/Paris)"
+	// Note: The middle dot (·) is Unicode U+00B7, but we match any separator
+	hitLimitPattern = regexp.MustCompile(`You['']ve hit your limit .* resets? (\d{1,2})(am|pm) \(([^)]+)\)`)
+
 	// Pattern for general rate limit errors
 	rateLimitPattern = regexp.MustCompile(`rate[_ ]limit|429|Too Many Requests`)
 )
@@ -37,14 +41,18 @@ func DetectRateLimitError(message string) ErrorInfo {
 		OriginalMessage: message,
 	}
 
-	// Check if it's a rate limit error
-	if !rateLimitPattern.MatchString(message) && !strings.Contains(message, "Claude usage limit reached") {
+	// Check for different rate limit message formats
+	isUsageLimit := strings.Contains(message, "Claude usage limit reached")
+	isHitLimit := hitLimitPattern.MatchString(message)
+	isGenericRateLimit := rateLimitPattern.MatchString(message)
+
+	if !isUsageLimit && !isHitLimit && !isGenericRateLimit {
 		return info
 	}
 
 	info.IsRateLimitError = true
 
-	// Try to extract reset time
+	// Try to extract reset time from the "Claude usage limit reached" format
 	matches := usageLimitPattern.FindStringSubmatch(message)
 	if len(matches) >= 4 {
 		// matches[1] = hour (e.g., "1")
@@ -59,6 +67,26 @@ func DetectRateLimitError(message string) ErrorInfo {
 		if !resetTime.IsZero() {
 			info.ResetTime = resetTime
 			info.WaitDuration = duration
+		}
+	}
+
+	// Try to extract reset time from "You've hit your limit" format
+	if info.WaitDuration == 0 {
+		matches = hitLimitPattern.FindStringSubmatch(message)
+		if len(matches) >= 4 {
+			// matches[1] = hour (e.g., "12")
+			// matches[2] = am/pm
+			// matches[3] = timezone (e.g., "Europe/Paris")
+
+			hour := matches[1] + matches[2]
+			timezone := matches[3]
+
+			// Parse the reset time
+			resetTime, duration := parseResetTime(hour, timezone)
+			if !resetTime.IsZero() {
+				info.ResetTime = resetTime
+				info.WaitDuration = duration
+			}
 		}
 	}
 

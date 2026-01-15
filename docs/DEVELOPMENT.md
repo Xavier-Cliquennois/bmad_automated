@@ -290,7 +290,7 @@ func TestRunnerRunSingle(t *testing.T) {
     var buf bytes.Buffer
     printer := output.NewPrinterWithWriter(&buf)
 
-    runner := workflow.NewRunner(mock, printer, config.DefaultConfig())
+    runner := workflow.NewRunner(mock, printer, config.DefaultConfig(), nil)
 
     exitCode := runner.RunSingle(context.Background(), "dev-story", "TEST-123")
 

@@ -25,7 +25,7 @@ func setupTestRunner() (*Runner, *claude.MockExecutor, *bytes.Buffer) {
 		},
 		ExitCode: 0,
 	}
-	runner := NewRunner(mockExecutor, printer, cfg)
+	runner := NewRunner(mockExecutor, printer, cfg, nil)
 	return runner, mockExecutor, buf
 }
 
@@ -34,7 +34,7 @@ func TestNewRunner(t *testing.T) {
 	printer := output.NewPrinter()
 	executor := &claude.MockExecutor{}
 
-	runner := NewRunner(executor, printer, cfg)
+	runner := NewRunner(executor, printer, cfg, nil)
 
 	assert.NotNil(t, runner)
 }
@@ -98,7 +98,7 @@ func TestRunner_RunFullCycle_FailAtStep(t *testing.T) {
 	originalExecute := mockExecutor.ExecuteWithResult
 	_ = originalExecute
 
-	runner := NewRunner(mockExecutor, printer, cfg)
+	runner := NewRunner(mockExecutor, printer, cfg, nil)
 
 	// Override executor to fail on second call
 	failingExecutor := &failOnNthCallExecutor{
@@ -125,12 +125,12 @@ func (f *failOnNthCallExecutor) Execute(ctx context.Context, prompt string) (<-c
 	return f.inner.Execute(ctx, prompt)
 }
 
-func (f *failOnNthCallExecutor) ExecuteWithResult(ctx context.Context, prompt string, handler claude.EventHandler) (int, error) {
+func (f *failOnNthCallExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, handler claude.EventHandler) (int, error) {
 	*f.current++
 	if *f.current == f.failOn {
 		return 1, nil
 	}
-	return f.inner.ExecuteWithResult(ctx, prompt, handler)
+	return f.inner.ExecuteWithResult(ctx, prompt, model, handler)
 }
 
 func TestRunner_HandleEvent(t *testing.T) {

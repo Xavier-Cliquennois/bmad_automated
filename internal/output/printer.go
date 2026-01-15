@@ -86,8 +86,8 @@ type Printer interface {
 	// CommandHeader prints the header before running a workflow command.
 	CommandHeader(label, prompt string, truncateLength int)
 	// CommandFooter prints the footer after a command completes with
-	// duration, success status, and exit code.
-	CommandFooter(duration time.Duration, success bool, exitCode int)
+	// duration, success status, exit code, and stderr messages.
+	CommandFooter(duration time.Duration, success bool, exitCode int, stderrMessages []string)
 }
 
 // DefaultPrinter implements [Printer] with lipgloss terminal styling.
@@ -304,13 +304,38 @@ func (p *DefaultPrinter) CommandHeader(label, prompt string, truncateLength int)
 }
 
 // CommandFooter prints the footer after a command completes.
-func (p *DefaultPrinter) CommandFooter(duration time.Duration, success bool, exitCode int) {
+func (p *DefaultPrinter) CommandFooter(duration time.Duration, success bool, exitCode int, stderrMessages []string) {
 	p.writeln("")
 	p.Divider()
 	if success {
 		p.writeln("  %s | Duration: %s", successStyle.Render(iconSuccess+" SUCCESS"), duration.Round(time.Millisecond))
 	} else {
 		p.writeln("  %s | Duration: %s | Exit code: %d", errorStyle.Render(iconError+" FAILED"), duration.Round(time.Millisecond), exitCode)
+
+		// Display stderr messages if available
+		if len(stderrMessages) > 0 {
+			p.writeln("")
+			p.writeln("  %s", errorStyle.Render("Error Details:"))
+
+			// Show last 10 lines max
+			start := 0
+			if len(stderrMessages) > 10 {
+				start = len(stderrMessages) - 10
+				p.writeln("  %s", mutedStyle.Render("  ... (showing last 10 lines)"))
+			}
+
+			for i := start; i < len(stderrMessages); i++ {
+				msg := stderrMessages[i]
+				// Highlight specific error patterns
+				if strings.Contains(msg, "Error:") || strings.Contains(msg, "error:") {
+					p.writeln("  %s", errorStyle.Render("  "+msg))
+				} else if strings.Contains(msg, "Warning:") || strings.Contains(msg, "warning:") {
+					p.writeln("  %s", mutedStyle.Render("  "+msg))
+				} else {
+					p.writeln("    %s", msg)
+				}
+			}
+		}
 	}
 	p.Divider()
 }

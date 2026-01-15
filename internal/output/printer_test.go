@@ -131,7 +131,7 @@ func TestDefaultPrinter_CommandFooter_Success(t *testing.T) {
 	var buf bytes.Buffer
 	p := NewPrinterWithWriter(&buf)
 
-	p.CommandFooter(5*time.Second, true, 0)
+	p.CommandFooter(5*time.Second, true, 0, nil)
 
 	output := buf.String()
 	assert.Contains(t, output, "SUCCESS")
@@ -141,7 +141,7 @@ func TestDefaultPrinter_CommandFooter_Failure(t *testing.T) {
 	var buf bytes.Buffer
 	p := NewPrinterWithWriter(&buf)
 
-	p.CommandFooter(5*time.Second, false, 1)
+	p.CommandFooter(5*time.Second, false, 1, nil)
 
 	output := buf.String()
 	assert.Contains(t, output, "FAILED")

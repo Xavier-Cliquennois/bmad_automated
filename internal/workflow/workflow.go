@@ -10,6 +10,24 @@ import (
 	"bmad-automate/internal/output"
 )
 
+// ErrorCollector is the interface for collecting stderr messages.
+//
+// The ErrorCollector captures all stderr output from Claude CLI for
+// diagnostic purposes when workflows fail.
+type ErrorCollector interface {
+	// GetAllMessages returns all stderr messages captured during execution.
+	GetAllMessages() []string
+}
+
+// TextMessageProcessor is an optional interface for processing Claude text messages.
+//
+// If an ErrorCollector also implements this interface, text messages from Claude
+// (stdout stream) will be analyzed for rate limit errors in addition to stderr.
+type TextMessageProcessor interface {
+	// ProcessTextMessage analyzes a text message from Claude for rate limit errors.
+	ProcessTextMessage(message string)
+}
+
 // Runner orchestrates workflow execution using Claude CLI.
 //
 // Runner is the primary executor for development workflows. It combines a
@@ -18,9 +36,10 @@ import (
 //
 // Use [NewRunner] to create a properly initialized Runner instance.
 type Runner struct {
-	executor claude.Executor
-	printer  output.Printer
-	config   *config.Config
+	executor       claude.Executor
+	printer        output.Printer
+	config         *config.Config
+	errorCollector ErrorCollector
 }
 
 // NewRunner creates a new workflow runner with the specified dependencies.
@@ -29,14 +48,16 @@ type Runner struct {
 //   - executor: The [claude.Executor] implementation for running Claude CLI
 //   - printer: The [output.Printer] for formatted terminal output
 //   - cfg: The configuration containing workflow prompt templates
+//   - errorCollector: The [ErrorCollector] for capturing stderr messages (optional, can be nil)
 //
 // The executor typically uses [claude.NewExecutor] in production or
 // [claude.MockExecutor] for testing.
-func NewRunner(executor claude.Executor, printer output.Printer, cfg *config.Config) *Runner {
+func NewRunner(executor claude.Executor, printer output.Printer, cfg *config.Config, errorCollector ErrorCollector) *Runner {
 	return &Runner{
-		executor: executor,
-		printer:  printer,
-		config:   cfg,
+		executor:       executor,
+		printer:        printer,
+		config:         cfg,
+		errorCollector: errorCollector,
 	}
 }
 
@@ -153,7 +174,14 @@ func (r *Runner) runClaude(ctx context.Context, prompt, label, model string) int
 	}
 
 	duration := time.Since(startTime)
-	r.printer.CommandFooter(duration, exitCode == 0, exitCode)
+
+	// Collect stderr messages for error reporting
+	var stderrMessages []string
+	if r.errorCollector != nil {
+		stderrMessages = r.errorCollector.GetAllMessages()
+	}
+
+	r.printer.CommandFooter(duration, exitCode == 0, exitCode, stderrMessages)
 
 	return exitCode
 }
@@ -181,6 +209,10 @@ func (r *Runner) handleEvent(event claude.Event) {
 
 	case event.IsText():
 		r.printer.Text(event.Text)
+		// Check text messages for rate limit errors (some appear on stdout, not stderr)
+		if processor, ok := r.errorCollector.(TextMessageProcessor); ok {
+			processor.ProcessTextMessage(event.Text)
+		}
 
 	case event.IsToolUse():
 		r.printer.ToolUse(event.ToolName, event.ToolDescription, event.ToolCommand, event.ToolFilePath)
