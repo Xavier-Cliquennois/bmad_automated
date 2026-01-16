@@ -8,9 +8,9 @@ import (
 
 // Version information - updated with each release
 const (
-	Version     = "1.3.1"
-	ReleaseDate = "2026-01-15"
-	Features    = "Fixed auto-retry detection for new rate limit message format"
+	Version     = "1.4.0"
+	ReleaseDate = "2026-01-16"
+	Features    = "Added --optimize-cost flag to use sonnet for dev and review workflows"
 )
 
 func newVersionCommand(app *App) *cobra.Command {
