@@ -61,7 +61,7 @@ Example:
 				fmt.Printf("Dry run for story %s:\n", storyKey)
 				for i, step := range steps {
 					model := getModelForStep(step, app.Config)
-				fmt.Printf("  %d. %s (%s) → %s\n", i+1, step.Workflow, model, step.NextStatus)
+					fmt.Printf("  %d. %s (%s) → %s\n", i+1, step.Workflow, model, step.NextStatus)
 				}
 				return nil
 			}

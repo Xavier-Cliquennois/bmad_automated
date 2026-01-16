@@ -339,3 +339,34 @@ func TestPromptData_StoryKey(t *testing.T) {
 	data := PromptData{StoryKey: "ABC-123"}
 	assert.Equal(t, "ABC-123", data.StoryKey)
 }
+
+func TestConfig_ApplyCostOptimizedMode(t *testing.T) {
+	cfg := DefaultConfig()
+
+	// Verify default models are opus for dev-story and code-review
+	assert.Equal(t, "opus", cfg.Workflows["create-story"].Model, "create-story should default to opus")
+	assert.Equal(t, "opus", cfg.Workflows["dev-story"].Model, "dev-story should default to opus")
+	assert.Equal(t, "opus", cfg.Workflows["code-review"].Model, "code-review should default to opus")
+	assert.Equal(t, "sonnet", cfg.Workflows["git-commit"].Model, "git-commit should default to sonnet")
+
+	// Apply cost optimization
+	cfg.ApplyCostOptimizedMode()
+
+	// Verify models after optimization
+	assert.Equal(t, "opus", cfg.Workflows["create-story"].Model, "create-story should remain opus after cost optimization")
+	assert.Equal(t, "sonnet", cfg.Workflows["dev-story"].Model, "dev-story should switch to sonnet after cost optimization")
+	assert.Equal(t, "sonnet", cfg.Workflows["code-review"].Model, "code-review should switch to sonnet after cost optimization")
+	assert.Equal(t, "sonnet", cfg.Workflows["git-commit"].Model, "git-commit should remain sonnet after cost optimization")
+}
+
+func TestConfig_ApplyCostOptimizedMode_Idempotent(t *testing.T) {
+	cfg := DefaultConfig()
+
+	// Apply twice
+	cfg.ApplyCostOptimizedMode()
+	cfg.ApplyCostOptimizedMode()
+
+	// Should still be correct
+	assert.Equal(t, "sonnet", cfg.Workflows["dev-story"].Model)
+	assert.Equal(t, "sonnet", cfg.Workflows["code-review"].Model)
+}

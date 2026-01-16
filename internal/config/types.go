@@ -114,11 +114,11 @@ func DefaultConfig() *Config {
 			},
 			"dev-story": {
 				PromptTemplate: "/bmad:bmm:workflows:dev-story - Work on story: {{.StoryKey}}. Complete all tasks. Run tests after each implementation. Do not ask clarifying questions - use best judgment based on existing patterns.",
-				Model:          "sonnet", // Use Sonnet for implementation
+				Model:          "opus", // Use Opus for implementation (default)
 			},
 			"code-review": {
 				PromptTemplate: "/bmad:bmm:workflows:code-review - Review story: {{.StoryKey}}. When presenting fix options, always choose to auto-fix all issues immediately. Do not wait for user input.",
-				Model:          "sonnet", // Use Sonnet for code review
+				Model:          "opus", // Use Opus for code review (default)
 			},
 			"git-commit": {
 				PromptTemplate: "Commit all changes for story {{.StoryKey}} with a descriptive commit message following conventional commits format. Then push to the current branch. Do not ask questions.",
@@ -148,4 +148,21 @@ type PromptData struct {
 	// StoryKey is the identifier of the story being processed.
 	// Access in templates with {{.StoryKey}}.
 	StoryKey string
+}
+
+// ApplyCostOptimizedMode modifies workflow models for cost optimization.
+// It sets dev-story and code-review to use "sonnet" instead of "opus".
+// create-story always uses "opus" and git-commit always uses "sonnet".
+func (c *Config) ApplyCostOptimizedMode() {
+	costOptimizedModels := map[string]string{
+		"dev-story":   "sonnet",
+		"code-review": "sonnet",
+	}
+
+	for workflowName, model := range costOptimizedModels {
+		if wf, ok := c.Workflows[workflowName]; ok {
+			wf.Model = model
+			c.Workflows[workflowName] = wf
+		}
+	}
 }

@@ -423,3 +423,86 @@ func TestExecuteResult(t *testing.T) {
 		assert.Error(t, result.Err)
 	})
 }
+
+func TestRootCommand_OptimizeCostFlag(t *testing.T) {
+	t.Run("default models are opus for dev and review", func(t *testing.T) {
+		app := setupTestApp()
+
+		// Verify default models before any command execution
+		assert.Equal(t, "opus", app.Config.Workflows["create-story"].Model)
+		assert.Equal(t, "opus", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "opus", app.Config.Workflows["code-review"].Model)
+		assert.Equal(t, "sonnet", app.Config.Workflows["git-commit"].Model)
+	})
+
+	t.Run("optimize-cost flag switches dev and review to sonnet", func(t *testing.T) {
+		app := setupTestApp()
+		rootCmd := NewRootCommand(app)
+
+		buf := &bytes.Buffer{}
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		// Use --optimize-cost with a simple command that triggers PersistentPreRunE
+		rootCmd.SetArgs([]string{"--optimize-cost", "create-story", "TEST-123"})
+
+		err := rootCmd.Execute()
+		assert.NoError(t, err)
+
+		// After execution with --optimize-cost, models should be modified
+		assert.Equal(t, "opus", app.Config.Workflows["create-story"].Model, "create-story should remain opus")
+		assert.Equal(t, "sonnet", app.Config.Workflows["dev-story"].Model, "dev-story should switch to sonnet")
+		assert.Equal(t, "sonnet", app.Config.Workflows["code-review"].Model, "code-review should switch to sonnet")
+		assert.Equal(t, "sonnet", app.Config.Workflows["git-commit"].Model, "git-commit should remain sonnet")
+	})
+
+	t.Run("short flag -O works", func(t *testing.T) {
+		app := setupTestApp()
+		rootCmd := NewRootCommand(app)
+
+		buf := &bytes.Buffer{}
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		rootCmd.SetArgs([]string{"-O", "create-story", "TEST-123"})
+
+		err := rootCmd.Execute()
+		assert.NoError(t, err)
+
+		// After execution with -O, models should be modified
+		assert.Equal(t, "sonnet", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "sonnet", app.Config.Workflows["code-review"].Model)
+	})
+
+	t.Run("without flag models stay as opus", func(t *testing.T) {
+		app := setupTestApp()
+		rootCmd := NewRootCommand(app)
+
+		buf := &bytes.Buffer{}
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		rootCmd.SetArgs([]string{"create-story", "TEST-123"})
+
+		err := rootCmd.Execute()
+		assert.NoError(t, err)
+
+		// Without flag, models should remain opus
+		assert.Equal(t, "opus", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "opus", app.Config.Workflows["code-review"].Model)
+	})
+}
+
+func TestRootCommand_OptimizeCostFlagInHelp(t *testing.T) {
+	app := setupTestApp()
+	rootCmd := NewRootCommand(app)
+
+	buf := &bytes.Buffer{}
+	rootCmd.SetOut(buf)
+	rootCmd.SetArgs([]string{"--help"})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	helpOutput := buf.String()
+	assert.Contains(t, helpOutput, "--optimize-cost")
+	assert.Contains(t, helpOutput, "-O")
+	assert.Contains(t, helpOutput, "Model Selection")
+}

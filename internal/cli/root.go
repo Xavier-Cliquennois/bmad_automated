@@ -172,14 +172,34 @@ func NewApp(cfg *config.Config) *App {
 //   - code-review: Review code (review status)
 //   - git-commit: Commit changes after review
 func NewRootCommand(app *App) *cobra.Command {
+	var optimizeCost bool
+
 	rootCmd := &cobra.Command{
 		Use:   "bmad-automate",
 		Short: "BMAD Automation CLI",
 		Long: `BMAD Automation CLI - Automate development workflows with Claude.
 
 This tool orchestrates Claude to run development workflows including
-story creation, development, code review, and git operations.`,
+story creation, development, code review, and git operations.
+
+Model Selection:
+  By default, workflows use opus for maximum quality:
+    - create-story: opus (always)
+    - dev-story:    opus
+    - code-review:  opus
+    - git-commit:   sonnet (always)
+
+  Use --optimize-cost (-O) to reduce costs by using sonnet for dev-story and code-review.`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if optimizeCost {
+				app.Config.ApplyCostOptimizedMode()
+			}
+			return nil
+		},
 	}
+
+	rootCmd.PersistentFlags().BoolVarP(&optimizeCost, "optimize-cost", "O", false,
+		"Use cost-optimized models (sonnet for dev-story and code-review)")
 
 	// Add subcommands
 	rootCmd.AddCommand(
