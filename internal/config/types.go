@@ -18,6 +18,8 @@
 //  4. [DefaultConfig] defaults
 package config
 
+import "strings"
+
 // Config represents the root configuration structure.
 //
 // This is the main configuration container loaded by [Loader] and used throughout
@@ -109,15 +111,15 @@ func DefaultConfig() *Config {
 	return &Config{
 		Workflows: map[string]WorkflowConfig{
 			"create-story": {
-				PromptTemplate: "/bmad:bmm:workflows:create-story - Create story: {{.StoryKey}}. Do not ask questions.",
+				PromptTemplate: "/bmad-bmm-create-story - Create story: {{.StoryKey}}. Do not ask questions.",
 				Model:          "opus", // Use Opus for complex story creation
 			},
 			"dev-story": {
-				PromptTemplate: "/bmad:bmm:workflows:dev-story - Work on story: {{.StoryKey}}. Complete all tasks. Run tests after each implementation. Do not ask clarifying questions - use best judgment based on existing patterns.",
+				PromptTemplate: "/bmad-bmm-dev-story - Work on story: {{.StoryKey}}. Complete all tasks. Run tests after each implementation. Do not ask clarifying questions - use best judgment based on existing patterns.",
 				Model:          "opus", // Use Opus for implementation (default)
 			},
 			"code-review": {
-				PromptTemplate: "/bmad:bmm:workflows:code-review - Review story: {{.StoryKey}}. When presenting fix options, always choose to auto-fix all issues immediately. Do not wait for user input.",
+				PromptTemplate: "/bmad-bmm-code-review - Review story: {{.StoryKey}}. When presenting fix options, always choose to auto-fix all issues immediately. Do not wait for user input.",
 				Model:          "opus", // Use Opus for code review (default)
 			},
 			"git-commit": {
@@ -148,6 +150,31 @@ type PromptData struct {
 	// StoryKey is the identifier of the story being processed.
 	// Access in templates with {{.StoryKey}}.
 	StoryKey string
+}
+
+// AdaptSlashCommands replaces slash command names in all workflow prompt
+// templates to match the detected command format. This ensures templates
+// work regardless of which format they were originally written in.
+func (c *Config) AdaptSlashCommands(format CommandFormat) {
+	for workflowName, commands := range slashCommands {
+		target, ok := commands[format]
+		if !ok {
+			continue
+		}
+
+		wf, exists := c.Workflows[workflowName]
+		if !exists {
+			continue
+		}
+
+		// Replace any format's command name with the target format
+		for _, cmd := range commands {
+			if cmd != target {
+				wf.PromptTemplate = strings.Replace(wf.PromptTemplate, cmd, target, 1)
+			}
+		}
+		c.Workflows[workflowName] = wf
+	}
 }
 
 // ApplyCostOptimizedMode modifies workflow models for cost optimization.

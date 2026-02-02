@@ -8,9 +8,9 @@ import (
 
 // Version information - updated with each release
 const (
-	Version     = "1.4.0"
-	ReleaseDate = "2026-01-16"
-	Features    = "Added --optimize-cost flag to use sonnet for dev and review workflows"
+	Version     = "1.5.0"
+	ReleaseDate = "2026-02-02"
+	Features    = "Dynamic detection of BMAD slash command format (Beta/Alpha)"
 )
 
 func newVersionCommand(app *App) *cobra.Command {
