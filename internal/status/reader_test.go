@@ -20,7 +20,7 @@ func TestReader_Read_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -60,7 +60,7 @@ func TestReader_Read_InvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -85,7 +85,7 @@ func TestReader_GetStoryStatus_Found(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -108,7 +108,7 @@ func TestReader_GetStoryStatus_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -131,7 +131,7 @@ func TestReader_GetStoryStatus_MultipleStories(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -182,7 +182,7 @@ func TestReader_GetStoryStatus_FileNotFound(t *testing.T) {
 func TestReader_GetEpicStories_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -207,7 +207,7 @@ func TestReader_GetEpicStories_Success(t *testing.T) {
 func TestReader_GetEpicStories_NumericSorting(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -233,7 +233,7 @@ func TestReader_GetEpicStories_NumericSorting(t *testing.T) {
 func TestReader_GetEpicStories_FiltersOutOtherEpics(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -258,7 +258,7 @@ func TestReader_GetEpicStories_FiltersOutOtherEpics(t *testing.T) {
 func TestReader_GetEpicStories_NoStoriesFound(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 

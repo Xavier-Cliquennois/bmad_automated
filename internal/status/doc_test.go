@@ -20,7 +20,7 @@ func Example_reader() {
 	defer os.RemoveAll(tmpDir)
 
 	// Create the status file path structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	if err := os.MkdirAll(statusDir, 0755); err != nil {
 		fmt.Println("Error:", err)
 		return
@@ -73,7 +73,7 @@ func Example_writer() {
 	defer os.RemoveAll(tmpDir)
 
 	// Create the status file path structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	if err := os.MkdirAll(statusDir, 0755); err != nil {
 		fmt.Println("Error:", err)
 		return

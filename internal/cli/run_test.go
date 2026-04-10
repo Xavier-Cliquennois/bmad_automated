@@ -85,7 +85,7 @@ func setupRunTestApp(tmpDir string) (*App, *claude.MockExecutor, *bytes.Buffer) 
 
 func createSprintStatusFile(t *testing.T, tmpDir string, content string) {
 	t.Helper()
-	artifactsDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	artifactsDir := filepath.Join(tmpDir, "_bmad-output")
 	require.NoError(t, os.MkdirAll(artifactsDir, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(artifactsDir, "sprint-status.yaml"), []byte(content), 0644))
 }

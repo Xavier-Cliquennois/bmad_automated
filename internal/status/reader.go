@@ -13,7 +13,7 @@ import (
 
 // DefaultStatusPath is the canonical location of the sprint-status.yaml file
 // relative to the project root. This path is used by both [Reader] and [Writer].
-const DefaultStatusPath = "_bmad-output/implementation-artifacts/sprint-status.yaml"
+const DefaultStatusPath = "_bmad-output/sprint-status.yaml"
 
 // Reader reads sprint status from YAML files at [DefaultStatusPath].
 //

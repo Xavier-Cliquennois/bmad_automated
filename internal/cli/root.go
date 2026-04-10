@@ -58,7 +58,7 @@ type WorkflowRunner interface {
 // StatusReader is the interface for reading story status from sprint-status.yaml.
 //
 // The production implementation is [status.Reader], which parses the YAML
-// file at _bmad-output/implementation-artifacts/sprint-status.yaml.
+// file at _bmad-output/sprint-status.yaml.
 type StatusReader interface {
 	// GetStoryStatus returns the current status of the given story key.
 	// Returns an error if the story key is not found or the file cannot be read.

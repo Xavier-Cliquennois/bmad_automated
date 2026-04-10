@@ -20,7 +20,7 @@ func TestWriter_UpdateStatus_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -59,7 +59,7 @@ func TestWriter_UpdateStatus_StoryNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -81,7 +81,7 @@ func TestWriter_UpdateStatus_InvalidStatus(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -113,7 +113,7 @@ func TestWriter_UpdateStatus_PreservesFormatting(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create the nested directory structure
-	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	statusDir := filepath.Join(tmpDir, "_bmad-output")
 	err := os.MkdirAll(statusDir, 0755)
 	require.NoError(t, err)
 
@@ -193,7 +193,7 @@ func TestWriter_UpdateStatus_AllStatusTransitions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
 
-			statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+			statusDir := filepath.Join(tmpDir, "_bmad-output")
 			err := os.MkdirAll(statusDir, 0755)
 			require.NoError(t, err)
 
