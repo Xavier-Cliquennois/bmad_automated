@@ -84,9 +84,10 @@ func (l *Loader) Load() (*Config, error) {
 		cfg.Claude.BinaryPath = binaryPath
 	}
 
-	// Detect and adapt slash command format for the current project
-	format := DetectCommandFormat(".")
-	cfg.AdaptSlashCommands(format)
+	// Detect and adapt slash command prefix for the current project.
+	// Supports any BMAD module: standard agile (bmad-*), game dev (gds-*), etc.
+	prefix := DetectCommandPrefix(".")
+	cfg.AdaptSlashCommands(prefix)
 
 	return cfg, nil
 }

@@ -131,17 +131,17 @@ func DefaultConfig() *Config {
 	return &Config{
 		Workflows: map[string]WorkflowConfig{
 			"create-story": {
-				PromptTemplate: "/bmad-bmm-create-story - Create story: {{.StoryKey}}. Do not ask questions.",
+				PromptTemplate: "/bmad-create-story - Create story: {{.StoryKey}}. Do not ask questions.",
 				Model:          "opus",
 				Effort:         defaultEffortForModel("opus"), // medium
 			},
 			"dev-story": {
-				PromptTemplate: "/bmad-bmm-dev-story - Work on story: {{.StoryKey}}. Complete all tasks. Run tests after each implementation. Do not ask clarifying questions - use best judgment based on existing patterns.",
+				PromptTemplate: "/bmad-dev-story - Work on story: {{.StoryKey}}. Complete all tasks. Run tests after each implementation. Do not ask clarifying questions - use best judgment based on existing patterns.",
 				Model:          "sonnet",
 				Effort:         defaultEffortForModel("sonnet"), // high
 			},
 			"code-review": {
-				PromptTemplate: "/bmad-bmm-code-review - Review story: {{.StoryKey}}. When presenting fix options, always choose to auto-fix all issues immediately. Do not wait for user input.",
+				PromptTemplate: "/bmad-code-review - Review story: {{.StoryKey}}. When presenting fix options, always choose to auto-fix all issues immediately. Do not wait for user input.",
 				Model:          "opus",
 				Effort:         defaultEffortForModel("opus"), // medium
 			},
@@ -178,28 +178,66 @@ type PromptData struct {
 }
 
 // AdaptSlashCommands replaces slash command names in all workflow prompt
-// templates to match the detected command format. This ensures templates
-// work regardless of which format they were originally written in.
-func (c *Config) AdaptSlashCommands(format CommandFormat) {
-	for workflowName, commands := range slashCommands {
-		target, ok := commands[format]
-		if !ok {
-			continue
-		}
-
+// templates to match the detected command prefix. This ensures templates
+// work for any BMAD module: standard agile (bmad-*), game dev (gds-*),
+// or any custom module prefix.
+//
+// For the Alpha format, use prefix "alpha" to get colon-separated commands.
+// For any other prefix, commands are built as /{prefix}-{command-base-name}.
+func (c *Config) AdaptSlashCommands(prefix string) {
+	for workflowName, baseName := range workflowCommandNames {
 		wf, exists := c.Workflows[workflowName]
 		if !exists {
 			continue
 		}
 
-		// Replace any format's command name with the target format
-		for _, cmd := range commands {
-			if cmd != target {
-				wf.PromptTemplate = strings.Replace(wf.PromptTemplate, cmd, target, 1)
-			}
+		var target string
+		if prefix == alphaPrefix {
+			target = "/bmad:bmm:workflows:" + baseName
+		} else {
+			target = "/" + prefix + "-" + baseName
 		}
+
+		// Replace any known command pattern with the target
+		wf.PromptTemplate = replaceAnyKnownCommand(wf.PromptTemplate, baseName, target)
 		c.Workflows[workflowName] = wf
 	}
+}
+
+// replaceAnyKnownCommand replaces any slash command ending in "-{baseName}"
+// or matching the alpha colon-format for baseName with the target command.
+func replaceAnyKnownCommand(template, baseName, target string) string {
+	// Replace alpha format: /bmad:bmm:workflows:{baseName}
+	alpha := "/bmad:bmm:workflows:" + baseName
+	if strings.Contains(template, alpha) {
+		return strings.Replace(template, alpha, target, 1)
+	}
+
+	// Replace any /{prefix}-{baseName} pattern by scanning for "-{baseName}"
+	suffix := "-" + baseName
+	for {
+		idx := strings.Index(template, suffix)
+		if idx < 0 {
+			break
+		}
+		// Walk back to find the slash that starts the command
+		start := idx
+		for start > 0 && template[start-1] != '/' && template[start-1] != ' ' && template[start-1] != '\n' {
+			start--
+		}
+		if start > 0 && template[start-1] == '/' {
+			start-- // include the slash
+		}
+		// Verify this looks like a slash command (starts with /)
+		if start >= len(template) || template[start] != '/' {
+			break
+		}
+		end := idx + len(suffix)
+		template = template[:start] + target + template[end:]
+		break
+	}
+
+	return template
 }
 
 // ApplyCostOptimizedMode modifies workflow models for cost optimization.

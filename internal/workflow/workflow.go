@@ -165,13 +165,32 @@ func (r *Runner) runClaude(ctx context.Context, prompt, label, model, effort str
 
 	startTime := time.Now()
 
+	// Track whether Claude produced any content (text or tool use events).
+	// An empty session (exit 0 but no content) indicates a silent failure,
+	// typically caused by a missing slash command or missing story file.
+	contentEvents := 0
+
 	handler := func(event claude.Event) {
+		if event.IsText() || event.IsToolUse() {
+			contentEvents++
+		}
 		r.handleEvent(event)
 	}
 
 	exitCode, err := r.executor.ExecuteWithResult(ctx, prompt, model, effort, handler)
 	if err != nil {
 		fmt.Printf("Error executing claude: %v\n", err)
+		exitCode = 1
+	}
+
+	// Detect empty sessions: Claude exited successfully but produced no content.
+	// This typically means the slash command was not found or the story file is missing.
+	if exitCode == 0 && contentEvents == 0 {
+		fmt.Printf("\n⚠️  Empty session detected: Claude produced no output.\n")
+		fmt.Printf("    Possible causes:\n")
+		fmt.Printf("    - Slash command not found in .claude/commands/ (e.g., /bmad-dev-story)\n")
+		fmt.Printf("    - Story file missing in the project\n")
+		fmt.Printf("    - Check stderr output above for details\n")
 		exitCode = 1
 	}
 

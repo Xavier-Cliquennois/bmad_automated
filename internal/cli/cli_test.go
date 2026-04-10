@@ -22,6 +22,7 @@ func setupTestApp() *App {
 	mockExecutor := &claude.MockExecutor{
 		Events: []claude.Event{
 			{Type: claude.EventTypeSystem, SessionStarted: true},
+			{Type: claude.EventTypeAssistant, Text: "Working on story..."},
 			{Type: claude.EventTypeResult, SessionComplete: true},
 		},
 		ExitCode: 0,
