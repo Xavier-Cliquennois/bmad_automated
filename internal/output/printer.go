@@ -84,7 +84,7 @@ type Printer interface {
 	QueueSummary(results []StoryResult, allKeys []string, totalDuration time.Duration)
 
 	// CommandHeader prints the header before running a workflow command.
-	CommandHeader(label, prompt string, truncateLength int)
+	CommandHeader(label, prompt, model, effort string, truncateLength int)
 	// CommandFooter prints the footer after a command completes with
 	// duration, success status, exit code, and stderr messages.
 	CommandFooter(duration time.Duration, success bool, exitCode int, stderrMessages []string)
@@ -295,10 +295,23 @@ func (p *DefaultPrinter) QueueSummary(results []StoryResult, allKeys []string, t
 }
 
 // CommandHeader prints the header before running a command.
-func (p *DefaultPrinter) CommandHeader(label, prompt string, truncateLength int) {
+func (p *DefaultPrinter) CommandHeader(label, prompt, model, effort string, truncateLength int) {
 	p.Divider()
 	p.writeln("  Command: %s", labelStyle.Render(label))
 	p.writeln("  Prompt:  %s", truncateString(prompt, truncateLength))
+	if model != "" || effort != "" {
+		meta := ""
+		if model != "" {
+			meta = "Model: " + model
+		}
+		if effort != "" {
+			if meta != "" {
+				meta += " | "
+			}
+			meta += "Effort: " + effort
+		}
+		p.writeln("  %s", mutedStyle.Render(meta))
+	}
 	p.Divider()
 	p.writeln("")
 }

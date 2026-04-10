@@ -121,7 +121,7 @@ func TestDefaultPrinter_CommandHeader(t *testing.T) {
 	var buf bytes.Buffer
 	p := NewPrinterWithWriter(&buf)
 
-	p.CommandHeader("create-story: test-123", "Long prompt here", 20)
+	p.CommandHeader("create-story: test-123", "Long prompt here", "", "", 20)
 
 	output := buf.String()
 	assert.Contains(t, output, "create-story: test-123")

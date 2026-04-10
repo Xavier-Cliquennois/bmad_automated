@@ -98,7 +98,7 @@ func Example_commandOutput() {
 	printer := output.NewPrinterWithWriter(&buf)
 
 	// Header shows command label and prompt
-	printer.CommandHeader("create-story", "Create story 7-1-define-schema", 80)
+	printer.CommandHeader("create-story", "Create story 7-1-define-schema", "", "", 80)
 
 	// ... command execution happens here ...
 

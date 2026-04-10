@@ -161,7 +161,7 @@ func (r *Runner) RunFullCycle(ctx context.Context, storyKey string) int {
 // The model parameter specifies which Claude model to use (empty string uses Claude CLI default).
 // The effort parameter sets the reasoning effort level (empty string uses Claude CLI default).
 func (r *Runner) runClaude(ctx context.Context, prompt, label, model, effort string) int {
-	r.printer.CommandHeader(label, prompt, r.config.Output.TruncateLength)
+	r.printer.CommandHeader(label, prompt, model, effort, r.config.Output.TruncateLength)
 
 	startTime := time.Now()
 
