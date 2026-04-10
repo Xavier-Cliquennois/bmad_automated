@@ -32,33 +32,39 @@ var workflowCommandNames = map[string]string{
 	"code-review":  "code-review",
 }
 
-// DetectCommandPrefix looks in .claude/commands/ for a *-dev-story.md file
-// and returns the detected prefix (e.g. "bmad", "gds", "bmad-bmm").
+// DetectCommandPrefix detects the slash command prefix for this project by
+// scanning for the *-dev-story skill or command file.
 //
-// Detection logic:
-//  1. Find any root-level *.md file ending in "-dev-story.md" → extract prefix
-//  2. If a file containing "create-story" exists in a subdirectory → "alpha"
-//  3. Default → "bmad"
+// Detection order:
+//  1. .claude/skills/ directory: look for an entry named *-dev-story (BMAD v6 native skills)
+//  2. .claude/commands/ directory: look for a *-dev-story.md file (flat file format)
+//  3. .claude/commands/ subdirectories: Alpha colon-separated format → returns "alpha"
+//  4. Default → "bmad"
 func DetectCommandPrefix(projectDir string) string {
-	commandsDir := filepath.Join(projectDir, ".claude", "commands")
+	claudeDir := filepath.Join(projectDir, ".claude")
 
+	// Priority 1: .claude/skills/ — BMAD v6 native skill directories (e.g. gds-dev-story/)
+	if prefix := findPrefixInDir(filepath.Join(claudeDir, "skills"), "-dev-story", true); prefix != "" {
+		return prefix
+	}
+
+	commandsDir := filepath.Join(claudeDir, "commands")
 	entries, err := os.ReadDir(commandsDir)
 	if err != nil {
 		return defaultPrefix
 	}
 
-	// First pass: look for *-dev-story.md at root level (covers v6, beta, gds, any custom prefix)
+	// Priority 2: .claude/commands/ — flat .md files (e.g. bmad-dev-story.md)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-		name := entry.Name()
-		if strings.HasSuffix(name, "-dev-story.md") {
-			return strings.TrimSuffix(name, "-dev-story.md")
+		if strings.HasSuffix(entry.Name(), "-dev-story.md") {
+			return strings.TrimSuffix(entry.Name(), "-dev-story.md")
 		}
 	}
 
-	// Second pass: check for Alpha format (subdirectory structure)
+	// Priority 3: .claude/commands/ — subdirectory Alpha format
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -70,6 +76,28 @@ func DetectCommandPrefix(projectDir string) string {
 	}
 
 	return defaultPrefix
+}
+
+// findPrefixInDir scans dir for an entry whose name ends with suffix and returns
+// the prefix (everything before the suffix). If allowDirs is false, only files
+// are considered; if true, both files and directories are considered.
+func findPrefixInDir(dir, suffix string, allowDirs bool) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if !allowDirs && entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		// Strip .md extension for file-based skills
+		base := strings.TrimSuffix(name, ".md")
+		if strings.HasSuffix(base, suffix) {
+			return strings.TrimSuffix(base, suffix)
+		}
+	}
+	return ""
 }
 
 // DetectCommandFormat checks the project directory to determine which

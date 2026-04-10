@@ -6,6 +6,49 @@ import (
 	"testing"
 )
 
+func TestDetectCommandPrefix_SkillsDir_GameDev(t *testing.T) {
+	dir := t.TempDir()
+
+	// BMAD v6 native skills: directories in .claude/skills/
+	skillsDir := filepath.Join(dir, ".claude", "skills")
+	if err := os.MkdirAll(filepath.Join(skillsDir, "gds-dev-story"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Also simulate unrelated bmad-* skills present alongside gds-*
+	if err := os.MkdirAll(filepath.Join(skillsDir, "bmad-help"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got := DetectCommandPrefix(dir)
+	if got != "gds" {
+		t.Errorf("expected 'gds', got %q", got)
+	}
+}
+
+func TestDetectCommandPrefix_SkillsDir_TakesPriorityOverCommands(t *testing.T) {
+	dir := t.TempDir()
+
+	// .claude/skills/ has gds-dev-story
+	skillsDir := filepath.Join(dir, ".claude", "skills")
+	if err := os.MkdirAll(filepath.Join(skillsDir, "gds-dev-story"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// .claude/commands/ has bmad-bmm-dev-story.md (old format)
+	cmdDir := filepath.Join(dir, ".claude", "commands")
+	if err := os.MkdirAll(cmdDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cmdDir, "bmad-bmm-dev-story.md"), []byte("# test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// skills/ should win
+	got := DetectCommandPrefix(dir)
+	if got != "gds" {
+		t.Errorf("expected 'gds' (from skills/), got %q", got)
+	}
+}
+
 func TestDetectCommandPrefix_V6(t *testing.T) {
 	dir := t.TempDir()
 
