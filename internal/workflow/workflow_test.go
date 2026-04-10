@@ -125,12 +125,12 @@ func (f *failOnNthCallExecutor) Execute(ctx context.Context, prompt string) (<-c
 	return f.inner.Execute(ctx, prompt)
 }
 
-func (f *failOnNthCallExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, handler claude.EventHandler) (int, error) {
+func (f *failOnNthCallExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, effort string, handler claude.EventHandler) (int, error) {
 	*f.current++
 	if *f.current == f.failOn {
 		return 1, nil
 	}
-	return f.inner.ExecuteWithResult(ctx, prompt, model, handler)
+	return f.inner.ExecuteWithResult(ctx, prompt, model, effort, handler)
 }
 
 func TestRunner_HandleEvent(t *testing.T) {

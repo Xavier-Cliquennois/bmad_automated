@@ -75,22 +75,22 @@ func (r *Runner) RunSingle(ctx context.Context, workflowName, storyKey string) i
 		return 1
 	}
 
-	// Get model from workflow config, fallback to default model
 	model := r.getModelForWorkflow(workflowName)
+	effort := r.getEffortForWorkflow(workflowName)
 
 	label := fmt.Sprintf("%s: %s", workflowName, storyKey)
-	return r.runClaude(ctx, prompt, label, model)
+	return r.runClaude(ctx, prompt, label, model, effort)
 }
 
 // RunRaw executes an arbitrary prompt without template expansion.
 //
 // Use this method for one-off or custom prompts that don't correspond to
 // configured workflows. The prompt is passed directly to Claude CLI.
-// Uses the default model configured in ClaudeConfig.DefaultModel.
+// Uses the default model and effort configured in ClaudeConfig.
 //
 // Returns the exit code from Claude CLI (0 for success, non-zero for failure).
 func (r *Runner) RunRaw(ctx context.Context, prompt string) int {
-	return r.runClaude(ctx, prompt, "raw", r.config.Claude.DefaultModel)
+	return r.runClaude(ctx, prompt, "raw", r.config.Claude.DefaultModel, r.config.Claude.DefaultEffort)
 }
 
 // RunFullCycle executes all configured steps in sequence for a story.
@@ -131,7 +131,8 @@ func (r *Runner) RunFullCycle(ctx context.Context, storyKey string) int {
 
 		stepStart := time.Now()
 		model := r.getModelForWorkflow(step.Name)
-		exitCode := r.runClaude(ctx, step.Prompt, fmt.Sprintf("%s: %s", step.Name, storyKey), model)
+		effort := r.getEffortForWorkflow(step.Name)
+		exitCode := r.runClaude(ctx, step.Prompt, fmt.Sprintf("%s: %s", step.Name, storyKey), model, effort)
 		duration := time.Since(stepStart)
 
 		results[i] = output.StepResult{
@@ -158,7 +159,8 @@ func (r *Runner) RunFullCycle(ctx context.Context, storyKey string) int {
 // It displays a command header, streams events to the printer via handleEvent,
 // and displays a footer with timing and exit status.
 // The model parameter specifies which Claude model to use (empty string uses Claude CLI default).
-func (r *Runner) runClaude(ctx context.Context, prompt, label, model string) int {
+// The effort parameter sets the reasoning effort level (empty string uses Claude CLI default).
+func (r *Runner) runClaude(ctx context.Context, prompt, label, model, effort string) int {
 	r.printer.CommandHeader(label, prompt, r.config.Output.TruncateLength)
 
 	startTime := time.Now()
@@ -167,7 +169,7 @@ func (r *Runner) runClaude(ctx context.Context, prompt, label, model string) int
 		r.handleEvent(event)
 	}
 
-	exitCode, err := r.executor.ExecuteWithResult(ctx, prompt, model, handler)
+	exitCode, err := r.executor.ExecuteWithResult(ctx, prompt, model, effort, handler)
 	if err != nil {
 		fmt.Printf("Error executing claude: %v\n", err)
 		exitCode = 1
@@ -195,6 +197,17 @@ func (r *Runner) getModelForWorkflow(workflowName string) string {
 		}
 	}
 	return r.config.Claude.DefaultModel
+}
+
+// getEffortForWorkflow returns the effort level to use for a given workflow.
+// It returns the workflow-specific effort if configured, otherwise the default effort.
+func (r *Runner) getEffortForWorkflow(workflowName string) string {
+	if wf, ok := r.config.Workflows[workflowName]; ok {
+		if wf.Effort != "" {
+			return wf.Effort
+		}
+	}
+	return r.config.Claude.DefaultEffort
 }
 
 // handleEvent routes a Claude streaming event to the appropriate printer method.

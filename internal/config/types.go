@@ -51,9 +51,14 @@ type WorkflowConfig struct {
 	PromptTemplate string `mapstructure:"prompt_template"`
 
 	// Model is the Claude model to use for this workflow.
-	// Examples: "sonnet", "opus", "claude-opus-4-20250514"
+	// Examples: "sonnet", "opus", "claude-opus-4-6", "claude-sonnet-4-6"
 	// If empty, uses ClaudeConfig.DefaultModel.
 	Model string `mapstructure:"model"`
+
+	// Effort is the effort level for this workflow.
+	// Valid values: "low", "medium", "high", "max"
+	// If empty, defaults based on model: opus -> "medium", sonnet -> "high".
+	Effort string `mapstructure:"effort"`
 }
 
 // FullCycleConfig defines the steps for a full development cycle.
@@ -80,10 +85,16 @@ type ClaudeConfig struct {
 	BinaryPath string `mapstructure:"binary_path"`
 
 	// DefaultModel is the default Claude model to use for all workflows.
-	// Examples: "sonnet", "opus", "claude-opus-4-20250514"
+	// Examples: "sonnet", "opus", "claude-opus-4-6", "claude-sonnet-4-6"
 	// If empty, uses Claude CLI's default model.
 	// Can be overridden per-workflow via WorkflowConfig.Model.
 	DefaultModel string `mapstructure:"default_model"`
+
+	// DefaultEffort is the default effort level for all workflows.
+	// Valid values: "low", "medium", "high", "max"
+	// If empty, defaults based on model: opus -> "medium", sonnet -> "high".
+	// Can be overridden per-workflow via WorkflowConfig.Effort.
+	DefaultEffort string `mapstructure:"default_effort"`
 }
 
 // OutputConfig contains terminal output formatting configuration.
@@ -107,33 +118,47 @@ type OutputConfig struct {
 // code-review, and git-commit workflows, as well as Claude CLI and output
 // formatting settings. These defaults work out of the box without any
 // configuration file.
+// defaultEffortForModel returns the default effort level for a given model.
+// opus -> "medium", all others (sonnet, haiku, etc.) -> "high".
+func defaultEffortForModel(model string) string {
+	if model == "opus" || strings.HasPrefix(model, "claude-opus") {
+		return "medium"
+	}
+	return "high"
+}
+
 func DefaultConfig() *Config {
 	return &Config{
 		Workflows: map[string]WorkflowConfig{
 			"create-story": {
 				PromptTemplate: "/bmad-bmm-create-story - Create story: {{.StoryKey}}. Do not ask questions.",
-				Model:          "opus", // Use Opus for complex story creation
+				Model:          "opus",
+				Effort:         defaultEffortForModel("opus"), // medium
 			},
 			"dev-story": {
 				PromptTemplate: "/bmad-bmm-dev-story - Work on story: {{.StoryKey}}. Complete all tasks. Run tests after each implementation. Do not ask clarifying questions - use best judgment based on existing patterns.",
-				Model:          "opus", // Use Opus for implementation (default)
+				Model:          "sonnet",
+				Effort:         defaultEffortForModel("sonnet"), // high
 			},
 			"code-review": {
 				PromptTemplate: "/bmad-bmm-code-review - Review story: {{.StoryKey}}. When presenting fix options, always choose to auto-fix all issues immediately. Do not wait for user input.",
-				Model:          "opus", // Use Opus for code review (default)
+				Model:          "opus",
+				Effort:         defaultEffortForModel("opus"), // medium
 			},
 			"git-commit": {
 				PromptTemplate: "Commit all changes for story {{.StoryKey}} with a descriptive commit message following conventional commits format. Then push to the current branch. Do not ask questions.",
-				Model:          "sonnet", // Use Sonnet for git operations
+				Model:          "sonnet",
+				Effort:         "medium", // git ops don't need high reasoning
 			},
 		},
 		FullCycle: FullCycleConfig{
 			Steps: []string{"create-story", "dev-story", "code-review", "git-commit"},
 		},
 		Claude: ClaudeConfig{
-			OutputFormat: "stream-json",
-			BinaryPath:   "claude",
-			DefaultModel: "sonnet", // Default model if not specified per-workflow
+			OutputFormat:  "stream-json",
+			BinaryPath:    "claude",
+			DefaultModel:  "sonnet",
+			DefaultEffort: defaultEffortForModel("sonnet"), // high
 		},
 		Output: OutputConfig{
 			TruncateLines:  20,
@@ -178,7 +203,8 @@ func (c *Config) AdaptSlashCommands(format CommandFormat) {
 }
 
 // ApplyCostOptimizedMode modifies workflow models for cost optimization.
-// It sets dev-story and code-review to use "sonnet" instead of "opus".
+// It sets dev-story and code-review to use "sonnet" instead of "opus",
+// and updates their effort levels accordingly (sonnet -> "high").
 // create-story always uses "opus" and git-commit always uses "sonnet".
 func (c *Config) ApplyCostOptimizedMode() {
 	costOptimizedModels := map[string]string{
@@ -189,6 +215,7 @@ func (c *Config) ApplyCostOptimizedMode() {
 	for workflowName, model := range costOptimizedModels {
 		if wf, ok := c.Workflows[workflowName]; ok {
 			wf.Model = model
+			wf.Effort = defaultEffortForModel(model)
 			c.Workflows[workflowName] = wf
 		}
 	}

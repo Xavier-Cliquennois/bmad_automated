@@ -430,7 +430,7 @@ func TestRootCommand_OptimizeCostFlag(t *testing.T) {
 
 		// Verify default models before any command execution
 		assert.Equal(t, "opus", app.Config.Workflows["create-story"].Model)
-		assert.Equal(t, "opus", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "sonnet", app.Config.Workflows["dev-story"].Model)
 		assert.Equal(t, "opus", app.Config.Workflows["code-review"].Model)
 		assert.Equal(t, "sonnet", app.Config.Workflows["git-commit"].Model)
 	})
@@ -472,7 +472,7 @@ func TestRootCommand_OptimizeCostFlag(t *testing.T) {
 		assert.Equal(t, "sonnet", app.Config.Workflows["code-review"].Model)
 	})
 
-	t.Run("without flag models stay as opus", func(t *testing.T) {
+	t.Run("without flag models stay as defaults", func(t *testing.T) {
 		app := setupTestApp()
 		rootCmd := NewRootCommand(app)
 
@@ -484,8 +484,8 @@ func TestRootCommand_OptimizeCostFlag(t *testing.T) {
 		err := rootCmd.Execute()
 		assert.NoError(t, err)
 
-		// Without flag, models should remain opus
-		assert.Equal(t, "opus", app.Config.Workflows["dev-story"].Model)
+		// Without flag, models should remain at their defaults
+		assert.Equal(t, "sonnet", app.Config.Workflows["dev-story"].Model)
 		assert.Equal(t, "opus", app.Config.Workflows["code-review"].Model)
 	})
 }
@@ -504,5 +504,5 @@ func TestRootCommand_OptimizeCostFlagInHelp(t *testing.T) {
 	helpOutput := buf.String()
 	assert.Contains(t, helpOutput, "--optimize-cost")
 	assert.Contains(t, helpOutput, "-O")
-	assert.Contains(t, helpOutput, "Model Selection")
+	assert.Contains(t, helpOutput, "Model & Effort Selection")
 }

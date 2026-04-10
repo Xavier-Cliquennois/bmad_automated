@@ -31,11 +31,13 @@ type Executor interface {
 	// The handler is called for each [Event] received during execution.
 	// The model parameter specifies which Claude model to use (e.g. "sonnet", "opus").
 	// If model is empty, Claude CLI's default model is used.
+	// The effort parameter sets the reasoning effort level (e.g. "low", "medium", "high", "max").
+	// If effort is empty, Claude CLI's default effort is used.
 	// Returns the exit code (0 for success) and any error encountered during execution.
 	//
 	// This is the recommended method for production use as it provides the exit code
 	// needed to determine if Claude completed successfully.
-	ExecuteWithResult(ctx context.Context, prompt string, model string, handler EventHandler) (int, error)
+	ExecuteWithResult(ctx context.Context, prompt string, model string, effort string, handler EventHandler) (int, error)
 }
 
 // EventHandler is a callback function invoked for each [Event] received from Claude.
@@ -175,7 +177,7 @@ func (e *DefaultExecutor) Execute(ctx context.Context, prompt string) (<-chan Ev
 // The handler may be nil if you only need the exit code without processing events.
 // If the handler is provided, it is called synchronously for each event before
 // this method returns.
-func (e *DefaultExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, handler EventHandler) (int, error) {
+func (e *DefaultExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, effort string, handler EventHandler) (int, error) {
 	args := []string{
 		"--dangerously-skip-permissions",
 		"--print",
@@ -186,6 +188,11 @@ func (e *DefaultExecutor) ExecuteWithResult(ctx context.Context, prompt string, 
 	// Add model flag if specified
 	if model != "" {
 		args = append(args, "--model", model)
+	}
+
+	// Add effort flag if specified
+	if effort != "" {
+		args = append(args, "--effort", effort)
 	}
 
 	// Add prompt as final argument
@@ -280,6 +287,14 @@ type MockExecutor struct {
 	// RecordedPrompts accumulates all prompts passed to Execute/ExecuteWithResult.
 	// Use this in tests to verify the correct prompts were sent.
 	RecordedPrompts []string
+
+	// RecordedModels accumulates all model values passed to ExecuteWithResult.
+	// Use this in tests to verify the correct models were selected.
+	RecordedModels []string
+
+	// RecordedEfforts accumulates all effort values passed to ExecuteWithResult.
+	// Use this in tests to verify the correct effort levels were selected.
+	RecordedEfforts []string
 }
 
 // Execute returns the pre-configured [MockExecutor.Events] via a channel.
@@ -313,12 +328,15 @@ func (m *MockExecutor) Execute(ctx context.Context, prompt string) (<-chan Event
 // ExecuteWithResult returns the pre-configured [MockExecutor.ExitCode].
 //
 // The prompt is recorded in [MockExecutor.RecordedPrompts] for later verification.
-// The model parameter is ignored by the mock.
+// The model and effort parameters are recorded in [MockExecutor.RecordedModels] and
+// [MockExecutor.RecordedEfforts] for later verification.
 // If [MockExecutor.Error] is set, it returns 1 and the error immediately.
 // Otherwise, all [MockExecutor.Events] are passed to the handler synchronously,
 // then the configured exit code is returned.
-func (m *MockExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, handler EventHandler) (int, error) {
+func (m *MockExecutor) ExecuteWithResult(ctx context.Context, prompt string, model string, effort string, handler EventHandler) (int, error) {
 	m.RecordedPrompts = append(m.RecordedPrompts, prompt)
+	m.RecordedModels = append(m.RecordedModels, model)
+	m.RecordedEfforts = append(m.RecordedEfforts, effort)
 
 	if m.Error != nil {
 		return 1, m.Error

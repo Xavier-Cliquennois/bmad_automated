@@ -25,7 +25,8 @@ func Example_mockExecutor() {
 	exitCode, err := mock.ExecuteWithResult(
 		context.Background(),
 		"Analyze this code",
-		"", // model
+		"",  // model
+		"",  // effort
 		func(event claude.Event) {
 			if event.IsText() {
 				fmt.Println(event.Text)

@@ -343,9 +343,9 @@ func TestPromptData_StoryKey(t *testing.T) {
 func TestConfig_ApplyCostOptimizedMode(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// Verify default models are opus for dev-story and code-review
+	// Verify default models
 	assert.Equal(t, "opus", cfg.Workflows["create-story"].Model, "create-story should default to opus")
-	assert.Equal(t, "opus", cfg.Workflows["dev-story"].Model, "dev-story should default to opus")
+	assert.Equal(t, "sonnet", cfg.Workflows["dev-story"].Model, "dev-story should default to sonnet")
 	assert.Equal(t, "opus", cfg.Workflows["code-review"].Model, "code-review should default to opus")
 	assert.Equal(t, "sonnet", cfg.Workflows["git-commit"].Model, "git-commit should default to sonnet")
 

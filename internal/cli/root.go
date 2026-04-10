@@ -182,14 +182,14 @@ func NewRootCommand(app *App) *cobra.Command {
 This tool orchestrates Claude to run development workflows including
 story creation, development, code review, and git operations.
 
-Model Selection:
-  By default, workflows use opus for maximum quality:
-    - create-story: opus (always)
-    - dev-story:    opus
-    - code-review:  opus
-    - git-commit:   sonnet (always)
+Model & Effort Selection:
+  Default model and effort per workflow:
+    - create-story: opus   / effort: medium
+    - dev-story:    sonnet / effort: high
+    - code-review:  opus   / effort: medium
+    - git-commit:   sonnet / effort: medium
 
-  Use --optimize-cost (-O) to reduce costs by using sonnet for dev-story and code-review.`,
+  Use --optimize-cost (-O) to switch dev-story and code-review to sonnet (effort: high).`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if optimizeCost {
 				app.Config.ApplyCostOptimizedMode()
