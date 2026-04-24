@@ -28,6 +28,22 @@ type TextMessageProcessor interface {
 	ProcessTextMessage(message string)
 }
 
+// TransientErrorReporter is an optional interface implemented by error collectors
+// that can flag retryable transient errors (stream timeouts, connection resets).
+// When present, [Runner.runClaude] will auto-retry once on a non-zero exit if a
+// transient error was seen during the run.
+type TransientErrorReporter interface {
+	HasTransientError() bool
+	Reset()
+}
+
+// maxTransientRetries caps how many times runClaude will auto-retry a single
+// Claude invocation when a transient error is detected. One retry is usually
+// enough: the underlying workflow is state-driven (sprint-status.yaml + already
+// persisted file edits), so re-running resumes from where the previous attempt
+// stopped.
+const maxTransientRetries = 1
+
 // Runner orchestrates workflow execution using Claude CLI.
 //
 // Runner is the primary executor for development workflows. It combines a
@@ -161,9 +177,50 @@ func (r *Runner) RunFullCycle(ctx context.Context, storyKey string) int {
 // The model parameter specifies which Claude model to use (empty string uses Claude CLI default).
 // The effort parameter sets the reasoning effort level (empty string uses Claude CLI default).
 func (r *Runner) runClaude(ctx context.Context, prompt, label, model, effort string) int {
-	r.printer.CommandHeader(label, prompt, model, effort, r.config.Output.TruncateLength)
-
 	startTime := time.Now()
+	exitCode := 0
+
+	for attempt := 0; attempt <= maxTransientRetries; attempt++ {
+		if attempt > 0 {
+			fmt.Printf("\n↻ Transient error detected — retrying (attempt %d/%d)...\n",
+				attempt+1, maxTransientRetries+1)
+			if reporter, ok := r.errorCollector.(TransientErrorReporter); ok {
+				reporter.Reset()
+			}
+		}
+
+		exitCode = r.runClaudeOnce(ctx, prompt, label, model, effort)
+
+		reporter, ok := r.errorCollector.(TransientErrorReporter)
+		if exitCode == 0 || !ok || !reporter.HasTransientError() {
+			break
+		}
+	}
+
+	if exitCode != 0 {
+		if reporter, ok := r.errorCollector.(TransientErrorReporter); ok && reporter.HasTransientError() {
+			fmt.Printf("\n⚠️  Transient API errors persisted after %d retry/retries.\n", maxTransientRetries)
+			fmt.Printf("    Suggestion: retry manually, or use --economy (-E) to reduce effort.\n")
+		}
+	}
+
+	duration := time.Since(startTime)
+
+	var stderrMessages []string
+	if r.errorCollector != nil {
+		stderrMessages = r.errorCollector.GetAllMessages()
+	}
+
+	r.printer.CommandFooter(duration, exitCode == 0, exitCode, stderrMessages)
+
+	return exitCode
+}
+
+// runClaudeOnce is a single Claude CLI invocation with streaming event handling.
+// It handles the header, event dispatch and empty-session detection, but leaves
+// retry logic and the command footer to the caller.
+func (r *Runner) runClaudeOnce(ctx context.Context, prompt, label, model, effort string) int {
+	r.printer.CommandHeader(label, prompt, model, effort, r.config.Output.TruncateLength)
 
 	// Track whether Claude produced any content (text or tool use events).
 	// An empty session (exit 0 but no content) indicates a silent failure,
@@ -193,16 +250,6 @@ func (r *Runner) runClaude(ctx context.Context, prompt, label, model, effort str
 		fmt.Printf("    - Check stderr output above for details\n")
 		exitCode = 1
 	}
-
-	duration := time.Since(startTime)
-
-	// Collect stderr messages for error reporting
-	var stderrMessages []string
-	if r.errorCollector != nil {
-		stderrMessages = r.errorCollector.GetAllMessages()
-	}
-
-	r.printer.CommandFooter(duration, exitCode == 0, exitCode, stderrMessages)
 
 	return exitCode
 }

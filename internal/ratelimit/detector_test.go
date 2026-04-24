@@ -169,3 +169,36 @@ func TestDetector_Reset(t *testing.T) {
 	assert.Empty(t, d.GetAllMessages())
 	assert.Nil(t, d.GetLastError())
 }
+
+func TestDetectTransientError(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		want    bool
+	}{
+		{"stream idle timeout", "API Error: Stream idle timeout - partial response received", true},
+		{"econnreset", "network error: ECONNRESET", true},
+		{"504 gateway timeout", "504 Gateway Timeout from upstream", true},
+		{"plain message", "Task completed successfully", false},
+		{"rate limit not transient", "Claude usage limit reached. Your limit will reset at 1pm (Etc/GMT+5).", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, DetectTransientError(tc.message))
+		})
+	}
+}
+
+func TestDetector_HasTransientError(t *testing.T) {
+	d := NewDetector()
+	assert.False(t, d.HasTransientError())
+
+	d.ProcessStderrLine("[stderr] harmless warning")
+	assert.False(t, d.HasTransientError())
+
+	d.ProcessTextMessage("API Error: Stream idle timeout - partial response received")
+	assert.True(t, d.HasTransientError())
+
+	d.Reset()
+	assert.False(t, d.HasTransientError(), "Reset must clear transient flag")
+}

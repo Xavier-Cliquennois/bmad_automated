@@ -32,7 +32,29 @@ var (
 
 	// Pattern for general rate limit errors
 	rateLimitPattern = regexp.MustCompile(`rate[_ ]limit|429|Too Many Requests`)
+
+	// Patterns for transient errors that are safe to retry automatically.
+	// Stream idle timeouts happen on long reasoning phases (e.g. Opus + xhigh effort);
+	// connection resets are standard network hiccups.
+	transientErrorPattern = regexp.MustCompile(
+		`API Error: Stream idle timeout|` +
+			`partial response received|` +
+			`ECONNRESET|` +
+			`ETIMEDOUT|` +
+			`socket hang up|` +
+			`Connection closed by peer|` +
+			`502 Bad Gateway|` +
+			`503 Service Unavailable|` +
+			`504 Gateway Timeout`,
+	)
 )
+
+// DetectTransientError returns true if the message looks like a recoverable,
+// retryable error from Claude CLI or the underlying API (stream timeouts,
+// network hiccups, transient upstream errors).
+func DetectTransientError(message string) bool {
+	return transientErrorPattern.MatchString(message)
+}
 
 // DetectRateLimitError analyzes an error message to determine if it's a rate limit error
 // and extracts timing information if available.

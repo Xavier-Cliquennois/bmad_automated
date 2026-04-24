@@ -8,9 +8,9 @@ import (
 
 // Version information - updated with each release
 const (
-	Version     = "1.6.0"
-	ReleaseDate = "2026-04-10"
-	Features    = "Dynamic prefix detection for any BMAD module (bmad, gds, custom); empty session detection"
+	Version     = "1.9.0"
+	ReleaseDate = "2026-04-24"
+	Features    = "GDS module support with guaranteed slash command adaptation (/gds-*) via end-to-end detection test"
 )
 
 func newVersionCommand(app *App) *cobra.Command {

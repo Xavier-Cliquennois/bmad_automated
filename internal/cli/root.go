@@ -172,7 +172,10 @@ func NewApp(cfg *config.Config) *App {
 //   - code-review: Review code (review status)
 //   - git-commit: Commit changes after review
 func NewRootCommand(app *App) *cobra.Command {
-	var optimizeCost bool
+	var (
+		optimizeCost bool
+		economy      bool
+	)
 
 	rootCmd := &cobra.Command{
 		Use:   "bmad-automate",
@@ -182,16 +185,12 @@ func NewRootCommand(app *App) *cobra.Command {
 This tool orchestrates Claude to run development workflows including
 story creation, development, code review, and git operations.
 
-Model & Effort Selection:
-  Default model and effort per workflow:
-    - create-story: opus   / effort: medium
-    - dev-story:    sonnet / effort: high
-    - code-review:  opus   / effort: medium
-    - git-commit:   sonnet / effort: medium
-
-  Use --optimize-cost (-O) to switch dev-story and code-review to sonnet (effort: high).`,
+` + config.ModelMatrix,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			if optimizeCost {
+			switch {
+			case economy:
+				app.Config.ApplyEconomyMode()
+			case optimizeCost:
 				app.Config.ApplyCostOptimizedMode()
 			}
 			return nil
@@ -200,6 +199,9 @@ Model & Effort Selection:
 
 	rootCmd.PersistentFlags().BoolVarP(&optimizeCost, "optimize-cost", "O", false,
 		"Use cost-optimized models (sonnet for dev-story and code-review)")
+	rootCmd.PersistentFlags().BoolVarP(&economy, "economy", "E", false,
+		"Economy mode: opus/xhigh for dev-story, sonnet/high for code-review")
+	rootCmd.MarkFlagsMutuallyExclusive("optimize-cost", "economy")
 
 	// Add subcommands
 	rootCmd.AddCommand(

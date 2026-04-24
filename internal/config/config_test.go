@@ -304,6 +304,85 @@ func TestConfig_GetPrompt_AllWorkflows(t *testing.T) {
 	}
 }
 
+// TestLoader_Load_GDSProjectEndToEnd simulates the full "kingdom-style" scenario:
+// a project using the GDS module (.claude/skills/gds-dev-story, gds-create-story,
+// gds-code-review) with a config/workflows.yaml still written for the bmm module
+// (/bmad-bmm-* commands). After Load(), every workflow MUST target /gds-* so that
+// bmad-automate invokes the correct slash commands for the detected module.
+func TestLoader_Load_GDSProjectEndToEnd(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Simulate kingdom's .claude/skills/ layout (BMAD v6 native skills)
+	skillsDir := filepath.Join(tmpDir, ".claude", "skills")
+	for _, skill := range []string{"gds-create-story", "gds-dev-story", "gds-code-review"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(skillsDir, skill), 0o755))
+	}
+
+	// Simulate the project's config/workflows.yaml with the old bmm-prefixed commands
+	configDir := filepath.Join(tmpDir, "config")
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	workflowsYAML := `
+workflows:
+  create-story:
+    prompt_template: "/bmad-bmm-create-story - Create story: {{.StoryKey}}."
+    model: "opus"
+  dev-story:
+    prompt_template: "/bmad-bmm-dev-story - Work on story: {{.StoryKey}}."
+    model: "opus"
+    effort: "xhigh"
+  code-review:
+    prompt_template: "/bmad-bmm-code-review - Review story: {{.StoryKey}}."
+    model: "opus"
+    effort: "xhigh"
+  git-commit:
+    prompt_template: "Commit all changes for story {{.StoryKey}}."
+    model: "sonnet"
+`
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, "workflows.yaml"), []byte(workflowsYAML), 0o644))
+
+	// Load from the project root so DetectCommandPrefix(".") picks up gds
+	originalWd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(tmpDir))
+	defer os.Chdir(originalWd)
+
+	os.Unsetenv("BMAD_CONFIG_PATH")
+	os.Unsetenv("BMAD_CLAUDE_PATH")
+
+	cfg, err := NewLoader().Load()
+	require.NoError(t, err)
+
+	// Every BMAD workflow must be rewritten to /gds-*
+	expected := map[string]string{
+		"create-story": "/gds-create-story",
+		"dev-story":    "/gds-dev-story",
+		"code-review":  "/gds-code-review",
+	}
+	for workflow, cmd := range expected {
+		wf, ok := cfg.Workflows[workflow]
+		require.True(t, ok, "workflow %s missing", workflow)
+		assert.Contains(t, wf.PromptTemplate, cmd,
+			"workflow %s should invoke %s, got %q", workflow, cmd, wf.PromptTemplate)
+		assert.NotContains(t, wf.PromptTemplate, "/bmad-bmm-",
+			"workflow %s still references bmm prefix: %q", workflow, wf.PromptTemplate)
+		assert.NotContains(t, wf.PromptTemplate, "/bmad-create-story",
+			"workflow %s still references plain bmad prefix: %q", workflow, wf.PromptTemplate)
+	}
+
+	// git-commit has no BMAD slash command — it must stay untouched
+	gitCommit := cfg.Workflows["git-commit"].PromptTemplate
+	assert.NotContains(t, gitCommit, "/gds-", "git-commit should not be rewritten")
+	assert.Contains(t, gitCommit, "Commit all changes")
+
+	// Rendered prompts (the actual string sent to Claude) must carry /gds-*
+	for workflow, cmd := range expected {
+		prompt, err := cfg.GetPrompt(workflow, "STORY-42")
+		require.NoError(t, err)
+		assert.Contains(t, prompt, cmd,
+			"rendered prompt for %s should start with %s", workflow, cmd)
+		assert.Contains(t, prompt, "STORY-42")
+	}
+}
+
 func TestLoader_LoadFromFile_DifferentExtension(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -345,9 +424,12 @@ func TestConfig_ApplyCostOptimizedMode(t *testing.T) {
 
 	// Verify default models
 	assert.Equal(t, "opus", cfg.Workflows["create-story"].Model, "create-story should default to opus")
-	assert.Equal(t, "sonnet", cfg.Workflows["dev-story"].Model, "dev-story should default to sonnet")
+	assert.Equal(t, "opus", cfg.Workflows["dev-story"].Model, "dev-story should default to opus")
+	assert.Equal(t, "xhigh", cfg.Workflows["dev-story"].Effort, "dev-story should default to xhigh effort")
 	assert.Equal(t, "opus", cfg.Workflows["code-review"].Model, "code-review should default to opus")
+	assert.Equal(t, "xhigh", cfg.Workflows["code-review"].Effort, "code-review should default to xhigh effort")
 	assert.Equal(t, "sonnet", cfg.Workflows["git-commit"].Model, "git-commit should default to sonnet")
+	assert.Equal(t, "medium", cfg.Workflows["git-commit"].Effort, "git-commit should default to medium effort")
 
 	// Apply cost optimization
 	cfg.ApplyCostOptimizedMode()
@@ -357,6 +439,20 @@ func TestConfig_ApplyCostOptimizedMode(t *testing.T) {
 	assert.Equal(t, "sonnet", cfg.Workflows["dev-story"].Model, "dev-story should switch to sonnet after cost optimization")
 	assert.Equal(t, "sonnet", cfg.Workflows["code-review"].Model, "code-review should switch to sonnet after cost optimization")
 	assert.Equal(t, "sonnet", cfg.Workflows["git-commit"].Model, "git-commit should remain sonnet after cost optimization")
+	assert.Equal(t, "medium", cfg.Workflows["git-commit"].Effort, "git-commit effort should stay medium (invariant)")
+}
+
+func TestConfig_ApplyEconomyMode(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.ApplyEconomyMode()
+
+	assert.Equal(t, "opus", cfg.Workflows["create-story"].Model, "create-story untouched by economy mode")
+	assert.Equal(t, "opus", cfg.Workflows["dev-story"].Model, "dev-story stays opus in economy mode")
+	assert.Equal(t, "xhigh", cfg.Workflows["dev-story"].Effort, "dev-story effort is xhigh in economy mode")
+	assert.Equal(t, "sonnet", cfg.Workflows["code-review"].Model, "code-review drops to sonnet in economy mode")
+	assert.Equal(t, "high", cfg.Workflows["code-review"].Effort, "code-review effort is high in economy mode")
+	assert.Equal(t, "sonnet", cfg.Workflows["git-commit"].Model, "git-commit invariant: sonnet")
+	assert.Equal(t, "medium", cfg.Workflows["git-commit"].Effort, "git-commit invariant: medium")
 }
 
 func TestConfig_ApplyCostOptimizedMode_Idempotent(t *testing.T) {

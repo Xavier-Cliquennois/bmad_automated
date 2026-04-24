@@ -431,8 +431,10 @@ func TestRootCommand_OptimizeCostFlag(t *testing.T) {
 
 		// Verify default models before any command execution
 		assert.Equal(t, "opus", app.Config.Workflows["create-story"].Model)
-		assert.Equal(t, "sonnet", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "opus", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "xhigh", app.Config.Workflows["dev-story"].Effort)
 		assert.Equal(t, "opus", app.Config.Workflows["code-review"].Model)
+		assert.Equal(t, "xhigh", app.Config.Workflows["code-review"].Effort)
 		assert.Equal(t, "sonnet", app.Config.Workflows["git-commit"].Model)
 	})
 
@@ -486,8 +488,10 @@ func TestRootCommand_OptimizeCostFlag(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Without flag, models should remain at their defaults
-		assert.Equal(t, "sonnet", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "opus", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "xhigh", app.Config.Workflows["dev-story"].Effort)
 		assert.Equal(t, "opus", app.Config.Workflows["code-review"].Model)
+		assert.Equal(t, "xhigh", app.Config.Workflows["code-review"].Effort)
 	})
 }
 
@@ -505,5 +509,89 @@ func TestRootCommand_OptimizeCostFlagInHelp(t *testing.T) {
 	helpOutput := buf.String()
 	assert.Contains(t, helpOutput, "--optimize-cost")
 	assert.Contains(t, helpOutput, "-O")
+	assert.Contains(t, helpOutput, "--economy")
+	assert.Contains(t, helpOutput, "-E")
 	assert.Contains(t, helpOutput, "Model & Effort Selection")
+}
+
+func TestRootCommand_EconomyFlag(t *testing.T) {
+	t.Run("economy flag sets dev-story to opus/xhigh and code-review to sonnet/high", func(t *testing.T) {
+		app := setupTestApp()
+		rootCmd := NewRootCommand(app)
+
+		buf := &bytes.Buffer{}
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		rootCmd.SetArgs([]string{"--economy", "create-story", "TEST-123"})
+
+		err := rootCmd.Execute()
+		assert.NoError(t, err)
+
+		dev := app.Config.Workflows["dev-story"]
+		assert.Equal(t, "opus", dev.Model, "dev-story should be opus in economy mode")
+		assert.Equal(t, "xhigh", dev.Effort, "dev-story effort should be xhigh in economy mode")
+
+		review := app.Config.Workflows["code-review"]
+		assert.Equal(t, "sonnet", review.Model, "code-review should switch to sonnet in economy mode")
+		assert.Equal(t, "high", review.Effort, "code-review effort should be high in economy mode")
+	})
+
+	t.Run("short flag -E works", func(t *testing.T) {
+		app := setupTestApp()
+		rootCmd := NewRootCommand(app)
+
+		buf := &bytes.Buffer{}
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		rootCmd.SetArgs([]string{"-E", "create-story", "TEST-123"})
+
+		err := rootCmd.Execute()
+		assert.NoError(t, err)
+
+		assert.Equal(t, "opus", app.Config.Workflows["dev-story"].Model)
+		assert.Equal(t, "xhigh", app.Config.Workflows["dev-story"].Effort)
+	})
+
+	t.Run("optimize-cost and economy are mutually exclusive", func(t *testing.T) {
+		app := setupTestApp()
+		rootCmd := NewRootCommand(app)
+
+		buf := &bytes.Buffer{}
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		rootCmd.SetArgs([]string{"--economy", "--optimize-cost", "create-story", "TEST-123"})
+
+		err := rootCmd.Execute()
+		assert.Error(t, err, "should reject both flags simultaneously")
+	})
+}
+
+func TestGitCommitInvariant(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"default mode", []string{"create-story", "TEST-123"}},
+		{"optimize-cost mode", []string{"--optimize-cost", "create-story", "TEST-123"}},
+		{"economy mode", []string{"--economy", "create-story", "TEST-123"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := setupTestApp()
+			rootCmd := NewRootCommand(app)
+
+			buf := &bytes.Buffer{}
+			rootCmd.SetOut(buf)
+			rootCmd.SetErr(buf)
+			rootCmd.SetArgs(tc.args)
+
+			err := rootCmd.Execute()
+			assert.NoError(t, err)
+
+			gc := app.Config.Workflows["git-commit"]
+			assert.Equal(t, "sonnet", gc.Model, "git-commit must always be sonnet")
+			assert.Equal(t, "medium", gc.Effort, "git-commit must always be medium effort")
+		})
+	}
 }

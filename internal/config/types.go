@@ -137,13 +137,13 @@ func DefaultConfig() *Config {
 			},
 			"dev-story": {
 				PromptTemplate: "/bmad-dev-story - Work on story: {{.StoryKey}}. Complete all tasks. Run tests after each implementation. Do not ask clarifying questions - use best judgment based on existing patterns.",
-				Model:          "sonnet",
-				Effort:         defaultEffortForModel("sonnet"), // high
+				Model:          "opus",
+				Effort:         "xhigh",
 			},
 			"code-review": {
 				PromptTemplate: "/bmad-code-review - Review story: {{.StoryKey}}. When presenting fix options, always choose to auto-fix all issues immediately. Do not wait for user input.",
 				Model:          "opus",
-				Effort:         defaultEffortForModel("opus"), // medium
+				Effort:         "xhigh",
 			},
 			"git-commit": {
 				PromptTemplate: "Commit all changes for story {{.StoryKey}} with a descriptive commit message following conventional commits format. Then push to the current branch. Do not ask questions.",
@@ -240,6 +240,25 @@ func replaceAnyKnownCommand(template, baseName, target string) string {
 	return template
 }
 
+// ModelMatrix documents the effective model and effort for every workflow
+// under each available mode. Kept here so that config and CLI help stay
+// aligned — update this table whenever ApplyEconomyMode, ApplyCostOptimizedMode
+// or DefaultConfig change a mapping.
+//
+//	Workflow      | default         | --optimize-cost (-O) | --economy (-E)
+//	------------- | --------------- | -------------------- | ---------------
+//	create-story  | opus   / medium | opus   / medium      | opus   / medium
+//	dev-story     | opus   / xhigh  | sonnet / high        | opus   / xhigh
+//	code-review   | opus   / xhigh  | sonnet / high        | sonnet / high
+//	git-commit    | sonnet / medium | sonnet / medium      | sonnet / medium  (invariant)
+const ModelMatrix = `Model & Effort Selection:
+  Workflow      | default         | --optimize-cost (-O) | --economy (-E)
+  ------------- | --------------- | -------------------- | ---------------
+  create-story  | opus   / medium | opus   / medium      | opus   / medium
+  dev-story     | opus   / xhigh  | sonnet / high        | opus   / xhigh
+  code-review   | opus   / xhigh  | sonnet / high        | sonnet / high
+  git-commit    | sonnet / medium | sonnet / medium      | sonnet / medium  (invariant)`
+
 // ApplyCostOptimizedMode modifies workflow models for cost optimization.
 // It sets dev-story and code-review to use "sonnet" instead of "opus",
 // and updates their effort levels accordingly (sonnet -> "high").
@@ -256,5 +275,41 @@ func (c *Config) ApplyCostOptimizedMode() {
 			wf.Effort = defaultEffortForModel(model)
 			c.Workflows[workflowName] = wf
 		}
+	}
+
+	c.normalizeGitCommit()
+}
+
+// ApplyEconomyMode tunes workflow models for a balanced quality/cost trade-off.
+// dev-story keeps "opus" with maximum reasoning ("xhigh") to preserve code quality,
+// while code-review drops to "sonnet" with "high" effort (Opus is overkill for review).
+// git-commit is always normalized to "sonnet" / "medium".
+func (c *Config) ApplyEconomyMode() {
+	economyOverrides := map[string]struct {
+		model  string
+		effort string
+	}{
+		"dev-story":   {"opus", "xhigh"},
+		"code-review": {"sonnet", "high"},
+	}
+
+	for workflowName, override := range economyOverrides {
+		if wf, ok := c.Workflows[workflowName]; ok {
+			wf.Model = override.model
+			wf.Effort = override.effort
+			c.Workflows[workflowName] = wf
+		}
+	}
+
+	c.normalizeGitCommit()
+}
+
+// normalizeGitCommit enforces the project-wide invariant that git-commit
+// always runs on "sonnet" with "medium" effort, regardless of the active mode.
+func (c *Config) normalizeGitCommit() {
+	if wf, ok := c.Workflows["git-commit"]; ok {
+		wf.Model = "sonnet"
+		wf.Effort = "medium"
+		c.Workflows["git-commit"] = wf
 	}
 }

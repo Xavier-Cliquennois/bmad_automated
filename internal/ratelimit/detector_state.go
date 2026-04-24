@@ -12,6 +12,10 @@ type Detector struct {
 	// lastError holds the most recent rate limit error info
 	lastError *ErrorInfo
 
+	// transientErrorSeen is set when a retryable transient error was observed
+	// (e.g. stream idle timeout, connection reset).
+	transientErrorSeen bool
+
 	// errorMessages accumulates all stderr messages
 	errorMessages []string
 }
@@ -36,6 +40,10 @@ func (d *Detector) ProcessStderrLine(line string) {
 	if info.IsRateLimitError {
 		d.lastError = &info
 	}
+
+	if DetectTransientError(line) {
+		d.transientErrorSeen = true
+	}
 }
 
 // ProcessTextMessage analyzes a Claude text message (from stdout) for rate limit errors.
@@ -52,6 +60,20 @@ func (d *Detector) ProcessTextMessage(message string) {
 		// Also add to error messages for visibility
 		d.errorMessages = append(d.errorMessages, "[stdout] "+message)
 	}
+
+	if DetectTransientError(message) {
+		d.transientErrorSeen = true
+		d.errorMessages = append(d.errorMessages, "[transient] "+message)
+	}
+}
+
+// HasTransientError reports whether a retryable transient error was seen
+// during this run (stream timeout, connection reset, transient 5xx).
+func (d *Detector) HasTransientError() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return d.transientErrorSeen
 }
 
 // GetLastError returns the most recent rate limit error, if any.
@@ -70,6 +92,7 @@ func (d *Detector) Reset() {
 	defer d.mu.Unlock()
 
 	d.lastError = nil
+	d.transientErrorSeen = false
 	d.errorMessages = d.errorMessages[:0]
 }
 
