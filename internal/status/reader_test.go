@@ -45,6 +45,50 @@ func TestReader_Read_Success(t *testing.T) {
 	assert.Equal(t, StatusBacklog, status.DevelopmentStatus["7-3-build-ui"])
 }
 
+func TestReader_Read_LegacyPath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create the legacy (pre-v6) nested directory structure
+	statusDir := filepath.Join(tmpDir, "_bmad-output", "implementation-artifacts")
+	err := os.MkdirAll(statusDir, 0755)
+	require.NoError(t, err)
+
+	statusContent := `development_status:
+  7-1-define-schema: ready-for-dev
+`
+	statusPath := filepath.Join(statusDir, "sprint-status.yaml")
+	err = os.WriteFile(statusPath, []byte(statusContent), 0644)
+	require.NoError(t, err)
+
+	reader := NewReader(tmpDir)
+	status, err := reader.Read()
+
+	require.NoError(t, err)
+	assert.Equal(t, StatusReadyForDev, status.DevelopmentStatus["7-1-define-schema"])
+}
+
+func TestResolveStatusPath_PrefersV6OverLegacy(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create both v6 and legacy files; v6 should win.
+	v6Dir := filepath.Join(tmpDir, "_bmad-output")
+	legacyDir := filepath.Join(v6Dir, "implementation-artifacts")
+	require.NoError(t, os.MkdirAll(legacyDir, 0755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(v6Dir, "sprint-status.yaml"), []byte("development_status: {}\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacyDir, "sprint-status.yaml"), []byte("development_status: {}\n"), 0644))
+
+	resolved := ResolveStatusPath(tmpDir)
+	assert.Equal(t, filepath.Join(tmpDir, DefaultStatusPath), resolved)
+}
+
+func TestResolveStatusPath_FallsBackToV6WhenMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	resolved := ResolveStatusPath(tmpDir)
+	assert.Equal(t, filepath.Join(tmpDir, DefaultStatusPath), resolved)
+}
+
 func TestReader_Read_FileNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 

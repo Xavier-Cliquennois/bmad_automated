@@ -8,9 +8,9 @@ import (
 
 // Version information - updated with each release
 const (
-	Version     = "1.9.0"
-	ReleaseDate = "2026-04-24"
-	Features    = "GDS module support with guaranteed slash command adaptation (/gds-*) via end-to-end detection test"
+	Version     = "1.10.0"
+	ReleaseDate = "2026-05-22"
+	Features    = "all-epics --epics flag to filter by range (9-13), list (9,11,13), or mixed (9-11,15)"
 )
 
 func newVersionCommand(app *App) *cobra.Command {

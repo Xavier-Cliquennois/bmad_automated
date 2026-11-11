@@ -12,8 +12,32 @@ import (
 )
 
 // DefaultStatusPath is the canonical location of the sprint-status.yaml file
-// relative to the project root. This path is used by both [Reader] and [Writer].
+// relative to the project root (BMAD v6 layout). This path is used by both
+// [Reader] and [Writer] when no existing file can be auto-detected.
 const DefaultStatusPath = "_bmad-output/sprint-status.yaml"
+
+// LegacyStatusPath is the pre-v6 location of the sprint-status.yaml file,
+// still used by many existing projects.
+const LegacyStatusPath = "_bmad-output/implementation-artifacts/sprint-status.yaml"
+
+// ResolveStatusPath returns the path to sprint-status.yaml under basePath,
+// preferring the v6 layout but falling back to the legacy layout when only
+// the legacy file exists on disk. When neither file exists, it returns the
+// v6 path so callers surface a path-not-found error pointing at the
+// canonical location.
+func ResolveStatusPath(basePath string) string {
+	v6 := filepath.Join(basePath, DefaultStatusPath)
+	if _, err := os.Stat(v6); err == nil {
+		return v6
+	}
+
+	legacy := filepath.Join(basePath, LegacyStatusPath)
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy
+	}
+
+	return v6
+}
 
 // Reader reads sprint status from YAML files at [DefaultStatusPath].
 //
@@ -39,7 +63,7 @@ func NewReader(basePath string) *Reader {
 // It returns the full [SprintStatus] structure containing all story statuses.
 // Returns an error if the file cannot be read or parsed.
 func (r *Reader) Read() (*SprintStatus, error) {
-	fullPath := filepath.Join(r.basePath, DefaultStatusPath)
+	fullPath := ResolveStatusPath(r.basePath)
 
 	data, err := os.ReadFile(fullPath)
 	if err != nil {

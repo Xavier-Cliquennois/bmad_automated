@@ -3,7 +3,6 @@ package status
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -43,7 +42,7 @@ func (w *Writer) UpdateStatus(storyKey string, newStatus Status) error {
 		return fmt.Errorf("invalid status: %s", newStatus)
 	}
 
-	fullPath := filepath.Join(w.basePath, DefaultStatusPath)
+	fullPath := ResolveStatusPath(w.basePath)
 
 	// Read existing file
 	data, err := os.ReadFile(fullPath)
